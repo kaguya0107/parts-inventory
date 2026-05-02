@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Auth ----
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ---- Master data ----
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  municipality String
+  machines     Machine[]
+  usages       UsageHistory[]
+  createdAt    DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([municipality])
+  @@map("customers")
+}
+
+model Machine {
+  id         String    @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  modelName  String
+  unitNo     String
+  engineNo   String?
+  usages     UsageHistory[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([modelName])
+  @@index([unitNo])
+  @@index([engineNo])
+  @@unique([customerId, modelName, unitNo])
+  @@map("machines")
+}
+
+model Part {
+  id               String             @id @default(cuid())
+  name             String
+  oemPartNo        String?
+  aftermarketNo    String?
+  oemListPrice     Decimal?           @db.Decimal(12, 2)
+  purchasePrice    Decimal?           @db.Decimal(12, 2)
+  salePrice        Decimal?           @db.Decimal(12, 2)
+  compatibleModels String?
+  markupRate       Decimal?           @db.Decimal(6, 4)
+  currentQty       Int                @default(0)
+
+  orderLines        OrderLine[]
+  usageLines        UsageHistoryLine[]
+  inventoryLogs     InventoryLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([oemPartNo])
+  @@index([aftermarketNo])
+  @@index([compatibleModels])
+  @@map("parts")
+}
+
+// ---- Purchase orders ----
+
+enum OrderStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum OrderLineStatus {
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  supplierName String?
+  memo         String?
+  status       OrderStatus @default(OPEN)
+  orderDate    DateTime    @default(now())
+
+  lines OrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderDate])
+  @@index([status])
+  @@index([supplierName])
+  @@map("orders")
+}
+
+model OrderLine {
+  id           String       @id @default(cuid())
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  partId       String
+  part         Part          @relation(fields: [partId], references: [id])
+  orderedQty   Int
+  receivedQty  Int           @default(0)
+  unitCost     Decimal?      @db.Decimal(12, 2)
+  lineStatus   OrderLineStatus @default(ORDERED)
+
+  inventoryLogs InventoryLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([partId])
+  @@map("order_lines")
+}
+
+// ---- Stock ledger ----
+
+enum InventoryLogType {
+  PURCHASE_IN
+  USAGE_OUT
+  ADJUSTMENT
+}
+
+model InventoryLog {
+  id           String           @id @default(cuid())
+  partId       String
+  part         Part              @relation(fields: [partId], references: [id])
+  logType      InventoryLogType
+  quantity     Int
+  occurredAt   DateTime         @default(now())
+  orderLineId  String?
+  orderLine    OrderLine?       @relation(fields: [orderLineId], references: [id])
+  usageLineId  String?          @unique
+  usageHistoryLine UsageHistoryLine? @relation(fields: [usageLineId], references: [id])
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partId])
+  @@index([occurredAt])
+  @@index([logType])
+  @@index([orderLineId])
+  @@map("inventory_logs")
+}
+
+// ---- Usage (outbound) slips ----
+
+model UsageHistory {
+  id         String   @id @default(cuid())
+  issueDate  DateTime @default(now())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  machineId  String?
+  machine    Machine?   @relation(fields: [machineId], references: [id])
+  memo       String?
+
+  lines UsageHistoryLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([issueDate])
+  @@index([customerId])
+  @@index([machineId])
+  @@map("usage_histories")
+}
+
+model UsageHistoryLine {
+  id              String       @id @default(cuid())
+  usageHistoryId  String
+  usageHistory    UsageHistory @relation(fields: [usageHistoryId], references: [id], onDelete: Cascade)
+  partId          String
+  part            Part           @relation(fields: [partId], references: [id])
+  quantity        Int
+
+  inventoryLog InventoryLog?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([usageHistoryId])
+  @@index([partId])
+  @@map("usage_history_lines")
+}
+
+// ---- Repairs ----
+
+model RepairHistory {
+  id             String   @id @default(cuid())
+  title          String
+  repairDate     DateTime @default(now())
+  pdfUrl         String   @default("")
+  storedFileKey  String
+  fileName       String
+  mimeType       String   @default("application/pdf")
+  fileSize       Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([repairDate])
+  @@index([title])
+  @@index([storedFileKey])
+  @@map("repair_histories")
+}

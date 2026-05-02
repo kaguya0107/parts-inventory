@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Japanese minimal — indigo primary, slate neutrals */
+@layer base {
+  :root {
+    --background: 215 28% 97%;
+    --foreground: 222 41% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 41% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 41% 12%;
+    --primary: 239 48% 48%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 22% 93%;
+    --secondary-foreground: 222 32% 18%;
+    --muted: 216 24% 94%;
+    --muted-foreground: 215 16% 43%;
+    --accent: 239 62% 55%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 350 70% 45%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 216 17% 88%;
+    --input: 216 17% 88%;
+    --ring: 239 48% 48%;
+    --radius: 0.5625rem;
+  }
+
+  .dark {
+    --background: 222 38% 8%;
+    --foreground: 213 31% 96%;
+    --card: 223 34% 12%;
+    --card-foreground: 213 31% 96%;
+    --popover: 223 34% 12%;
+    --popover-foreground: 213 31% 96%;
+    --primary: 234 76% 70%;
+    --primary-foreground: 224 71% 6%;
+    --secondary: 217 26% 16%;
+    --secondary-foreground: 213 31% 96%;
+    --muted: 217 22% 16%;
+    --muted-foreground: 215 17% 70%;
+    --accent: 239 62% 60%;
+    --accent-foreground: 213 31% 98%;
+    --destructive: 350 62% 45%;
+    --destructive-foreground: 213 31% 98%;
+    --border: 217 22% 20%;
+    --input: 217 22% 20%;
+    --ring: 234 76% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
