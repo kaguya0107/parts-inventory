@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import Link from "next/link";
 import type { Customer } from "@prisma/client";
 import { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -31,9 +32,44 @@ export type MachineTableRow = {
 const columns: ColumnDef<MachineTableRow>[] = [
   { accessorKey: "customerName", header: "顧客" },
   { accessorKey: "municipality", header: "所在地" },
-  { accessorKey: "modelName", header: "型式" },
+  {
+    accessorKey: "modelName",
+    header: "型式",
+    cell: ({ row }) => (
+      <Link className="font-medium text-primary underline-offset-4 hover:underline" href={`/dashboard/machines/${row.original.id}`}>
+        {row.original.modelName}
+      </Link>
+    ),
+  },
   { accessorKey: "unitNo", header: "号機" },
   { accessorKey: "engineNo", header: "エンジンNo" },
+  {
+    id: "repairs",
+    header: "修理",
+    enableSorting: false,
+    cell: ({ row }) => (
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs">
+        <Link
+          className="font-medium text-primary underline-offset-4 hover:underline"
+          href={`/dashboard/machines/${row.original.id}`}
+        >
+          詳細
+        </Link>
+        <Link
+          className="text-muted-foreground underline-offset-4 hover:underline"
+          href={`/dashboard/repairs/new?machineId=${row.original.id}`}
+        >
+          PDF登録
+        </Link>
+        <Link
+          className="text-muted-foreground underline-offset-4 hover:underline"
+          href={`/dashboard/repairs?machineId=${row.original.id}`}
+        >
+          表形式
+        </Link>
+      </div>
+    ),
+  },
   {
     id: "_actions",
     header: "",
