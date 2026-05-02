@@ -7,6 +7,12 @@ import { prisma } from "@/lib/db";
 import { ActionError } from "@/lib/server/action-guard";
 import { orderLineStatusFromQuantities, orderProgressStatus } from "@/lib/domain/inventory";
 
+/**
+ * Purchase **receipt** is the only path that increases on-hand stock (incoming):
+ * we append a `PURCHASE_IN` ledger row (positive `quantity`) and bump `Part.currentQty`
+ * in the same transaction. Placing an order alone does not change stock.
+ */
+
 export async function createOrderHeader(input: {
   supplierName?: string;
   memo?: string;
@@ -65,6 +71,7 @@ export async function receiveOrderLineTx(tx: DbClient, input: { orderLineId: str
     throw new ActionError("入荷数量が発注残を超えています");
   }
 
+  // Immutable ledger row + cached qty update — same transaction (all-or-nothing).
   await tx.inventoryLog.create({
     data: {
       partId: line.partId,

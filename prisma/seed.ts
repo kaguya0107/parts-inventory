@@ -78,7 +78,7 @@ async function main() {
         salePrice: 7800,
         compatibleModels: "SM-710 / SM-720",
         markupRate: 0.15,
-        currentQty: 4,
+        currentQty: 0,
       },
     });
   }

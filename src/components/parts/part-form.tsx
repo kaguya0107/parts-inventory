@@ -97,10 +97,21 @@ export function PartForm({ part, embedded, onSaved, onCancel }: Props) {
             placeholder="例: XX-710 / XX-730"
           />
         </div>
-        <div className="grid gap-2 md:col-span-1">
-          <Label htmlFor="currentQty">現在庫数（マスタ）</Label>
-          <Input id="currentQty" name="currentQty" type="number" defaultValue={part?.currentQty ?? 0} />
-          <p className="text-xs text-muted-foreground">数値を変えると調整レコードとして履歴できます。</p>
+        <div className="grid gap-2 md:col-span-2 rounded-md border border-border/60 bg-muted/20 px-3 py-3">
+          <Label className="text-muted-foreground">現在庫</Label>
+          {editing ? (
+            <>
+              <p className="text-lg font-semibold tabular-nums">{part?.currentQty ?? 0}</p>
+              <p className="text-xs text-muted-foreground">
+                在庫はマスタから直接は変更しません。入荷（注文の受入）で増え、出庫（使用登録）で減ります。履歴は「在庫・履歴」で確認できます。
+              </p>
+              <Button variant="link" className="h-auto justify-start p-0 text-xs" asChild>
+                <Link href="/dashboard/inventory">在庫・履歴へ</Link>
+              </Button>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">新規登録時の在庫は 0 です。入荷処理後に増えます。</p>
+          )}
         </div>
       </form>
 
