@@ -48,8 +48,9 @@ model Machine {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   modelName  String
   unitNo     String
-  engineNo   String?
-  usages     UsageHistory[]
+  engineNo        String?
+  usages          UsageHistory[]
+  repairHistories RepairHistory[]
   createdAt  DateTime  @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -223,6 +224,8 @@ model RepairHistory {
   fileName       String
   mimeType       String   @default("application/pdf")
   fileSize       Int
+  machineId      String?
+  machine        Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -230,5 +233,6 @@ model RepairHistory {
   @@index([repairDate])
   @@index([title])
   @@index([storedFileKey])
+  @@index([machineId])
   @@map("repair_histories")
 }

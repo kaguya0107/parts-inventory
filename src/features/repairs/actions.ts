@@ -10,8 +10,11 @@ export async function deleteRepairRecord(recordId: string): Promise<ActionResult
   return guardAction(async () => {
     await requireUser();
 
-    await RepairsService.deleteRepairRecord(recordId);
+    const { machineId } = await RepairsService.deleteRepairRecord(recordId);
 
     revalidatePath("/dashboard/repairs");
+    if (machineId) {
+      revalidatePath(`/dashboard/machines/${machineId}`);
+    }
   });
 }
