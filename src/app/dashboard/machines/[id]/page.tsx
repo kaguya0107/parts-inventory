@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
 import {
   MachineScopedRepairsDataTable,
   type RepairMachineScopedRow,
 } from "@/components/repairs/repairs-data-table";
 import { Button } from "@/components/ui/button";
 import { jpDateLabel } from "@/lib/utils";
-import { prisma } from "@/lib/db";
+import { getMachineWithCustomer } from "@/server/services/machines.service";
 import { listRepairHistories } from "@/server/services/repairs.service";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +19,7 @@ type Props = { params: Promise<{ id: string }> };
 export default async function MachineDetailPage(props: Props) {
   const { id } = await props.params;
 
-  const machine = await prisma.machine.findUnique({
-    where: { id },
-    include: { customer: true },
-  });
+  const machine = await getMachineWithCustomer(id);
 
   if (!machine) notFound();
 
@@ -37,7 +34,7 @@ export default async function MachineDetailPage(props: Props) {
   }));
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title={`保有機：${machine.modelName} / ${machine.unitNo}`}
         description={`${machine.customer.name}（${machine.customer.municipality}）の修理伝票PDFを一覧します。`}
@@ -56,7 +53,7 @@ export default async function MachineDetailPage(props: Props) {
         }
       />
 
-      <MotionFade className="flex flex-col gap-8 px-5 py-8 sm:px-8">
+      <DashboardContent className="gap-8">
         <section className="rounded-lg border border-border/80 bg-card/30 px-4 py-4 shadow-sm sm:px-5">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">機械情報</h2>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -86,7 +83,7 @@ export default async function MachineDetailPage(props: Props) {
           </p>
           <MachineScopedRepairsDataTable data={repairRows} />
         </section>
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

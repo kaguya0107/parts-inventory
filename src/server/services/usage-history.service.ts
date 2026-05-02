@@ -1,3 +1,7 @@
+import { listCustomersAlphabetical } from "@/server/services/customers.service";
+import { listMachinesForOutgoing } from "@/server/services/machines.service";
+import { listPartsForStockPickers } from "@/server/services/parts.service";
+
 import type { DbClient } from "@/server/db/types";
 import { applyStockDelta } from "@/server/inventory/stock-delta";
 
@@ -76,6 +80,17 @@ export async function createUsageSlipTx(tx: DbClient, payload: CreateUsageSlipPa
 
 export async function createUsageSlip(payload: CreateUsageSlipPayload): Promise<{ id: string }> {
   return prisma.$transaction((tx) => createUsageSlipTx(tx, payload));
+}
+
+/** Server-composed props for the outgoing issue form (one import site for the page). */
+export async function getOutgoingIssueFormData() {
+  const [customers, machines, parts] = await Promise.all([
+    listCustomersAlphabetical(),
+    listMachinesForOutgoing(),
+    listPartsForStockPickers(),
+  ]);
+
+  return { customers, machines, parts };
 }
 
 export async function listUsageHistoriesForDashboard(take = 250) {

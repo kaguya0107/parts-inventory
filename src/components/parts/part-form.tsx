@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import type { Part } from "@prisma/client";
 
 import { createPart, deletePart, updatePart } from "@/features/parts/actions";
-import { notifyActionResult } from "@/lib/toast-action";
+import { useActionResultTransition } from "@/hooks/use-action-result-transition";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,12 +31,11 @@ export function PartForm({ part, embedded, onSaved, onCancel }: Props) {
   const router = useRouter();
   const editing = !!part?.id;
 
-  const [message, setMessage] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { pending, errorMessage, run } = useActionResultTransition();
 
   const inner = (
     <>
-      {message ? <p className="text-sm text-destructive">{message}</p> : null}
+      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 
       <form
         id="part-form"
@@ -45,19 +43,18 @@ export function PartForm({ part, embedded, onSaved, onCancel }: Props) {
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
-          startTransition(async () => {
-            setMessage(null);
-            const res =
-              editing && part?.id ? await updatePart(part.id, formData) : await createPart(formData);
-            notifyActionResult(res, "保存しました");
-            if (!res.ok) {
-              setMessage(res.message);
-              return;
-            }
-            if (!editing) onSaved?.();
-            if (!embedded) router.push("/dashboard/parts");
-            router.refresh();
-          });
+          run(
+            () =>
+              editing && part?.id ? updatePart(part.id, formData) : createPart(formData),
+            {
+              okMessage: "保存しました",
+              onSuccess: () => {
+                if (!editing) onSaved?.();
+                if (!embedded) router.push("/dashboard/parts");
+                router.refresh();
+              },
+            },
+          );
         }}
       >
         <div className="md:col-span-2 grid gap-2">
@@ -105,7 +102,7 @@ export function PartForm({ part, embedded, onSaved, onCancel }: Props) {
               <p className="text-xs text-muted-foreground">
                 在庫はマスタから直接は変更しません。入荷（注文の受入）で増え、出庫（使用登録）で減ります。履歴は「在庫・履歴」で確認できます。
               </p>
-              <Button variant="link" className="h-auto justify-start p-0 text-xs" asChild>
+              <Button variant="ghost" size="sm" className="h-auto justify-start p-0 text-xs" asChild>
                 <Link href="/dashboard/inventory">在庫・履歴へ</Link>
               </Button>
             </>
@@ -140,16 +137,12 @@ export function PartForm({ part, embedded, onSaved, onCancel }: Props) {
             disabled={pending}
             onClick={() => {
               if (!confirm("削除してもよいですか？（利用済みの場合は削除できません）")) return;
-              startTransition(async () => {
-                setMessage(null);
-                const result = await deletePart(part.id);
-                notifyActionResult(result, "削除しました");
-                if (!result.ok) {
-                  setMessage(result.message);
-                  return;
-                }
-                router.push("/dashboard/parts");
-                router.refresh();
+              run(() => deletePart(part.id), {
+                okMessage: "削除しました",
+                onSuccess: () => {
+                  router.push("/dashboard/parts");
+                  router.refresh();
+                },
               });
             }}
           >
