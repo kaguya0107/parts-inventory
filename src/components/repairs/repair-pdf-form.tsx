@@ -2,16 +2,37 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function RepairPdfForm() {
+const NONE = "__none__";
+
+export type RepairMachineOption = { id: string; label: string };
+
+type Props = {
+  machines: RepairMachineOption[];
+  initialMachineId?: string | null;
+};
+
+export function RepairPdfForm({ machines, initialMachineId }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+
+  const defaultMachine = useMemo(() => {
+    if (!initialMachineId?.trim()) return NONE;
+    return machines.some((m) => m.id === initialMachineId) ? initialMachineId : NONE;
+  }, [initialMachineId, machines]);
+
+  const [machineValue, setMachineValue] = useState(defaultMachine);
+
+  useEffect(() => {
+    setMachineValue(defaultMachine);
+  }, [defaultMachine]);
 
   return (
     <form
@@ -22,16 +43,25 @@ export function RepairPdfForm() {
         startTransition(async () => {
           setMessage(null);
           const fd = new FormData(form);
+          if (machineValue && machineValue !== NONE) {
+            fd.set("machineId", machineValue);
+          } else {
+            fd.delete("machineId");
+          }
           try {
             const res = await fetch("/api/uploads/repair-pdf", {
               method: "POST",
               body: fd,
             });
+            const body = (await res.json().catch(() => null)) as { message?: string } | null;
             if (!res.ok) {
-              setMessage("アップロードに失敗しました (PDFのみ / サイズ確認)");
+              setMessage(
+                typeof body?.message === "string" ? body.message : "アップロードに失敗しました (PDFのみ / サイズ確認)",
+              );
               return;
             }
             form.reset();
+            setMachineValue(NONE);
             router.push("/dashboard/repairs");
             router.refresh();
           } catch {
@@ -43,6 +73,23 @@ export function RepairPdfForm() {
       <div className="space-y-2">
         <Label htmlFor="title">タイトル *</Label>
         <Input id="title" name="title" required placeholder="伝票概要など" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="repair-machine">保有機（任意）</Label>
+        <Select value={machineValue} onValueChange={setMachineValue}>
+          <SelectTrigger id="repair-machine" className="w-full">
+            <SelectValue placeholder="紐づけなし" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>紐づけなし</SelectItem>
+            {machines.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[12px] text-muted-foreground">保有機ごとに一覧・検索しやすくなります。</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="repairDate">日付</Label>

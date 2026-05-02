@@ -12,6 +12,7 @@ export type RepairTableRow = {
   repairDateDisplay: string;
   title: string;
   fileName: string;
+  machineLabel: string;
 };
 
 const columns: ColumnDef<RepairTableRow>[] = [
@@ -19,6 +20,15 @@ const columns: ColumnDef<RepairTableRow>[] = [
     accessorKey: "repairDateSort",
     header: "日付",
     cell: ({ row }) => <span className="tabular-nums">{row.original.repairDateDisplay}</span>,
+  },
+  {
+    accessorKey: "machineLabel",
+    header: "保有機",
+    cell: ({ row }) => (
+      <span className="max-w-[200px] truncate text-xs text-muted-foreground sm:max-w-[260px]">
+        {row.original.machineLabel}
+      </span>
+    ),
   },
   {
     accessorKey: "title",
@@ -57,6 +67,6 @@ const columns: ColumnDef<RepairTableRow>[] = [
 
 export function RepairsDataTable({ data }: { data: RepairTableRow[] }) {
   return (
-    <DataTable columns={columns} data={data} filterPlaceholder="タイトル・ファイル名で絞り込み…" emptyLabel="修理履歴がありません。" />
+    <DataTable columns={columns} data={data} filterPlaceholder="保有機・タイトル・ファイル名で絞り込み…" emptyLabel="修理履歴がありません。" />
   );
 }

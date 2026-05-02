@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { ActionError } from "@/lib/server/action-guard";
 import * as RepairsService from "@/server/services/repairs.service";
 import { saveRepairPdf } from "@/lib/storage/local";
 
@@ -42,6 +43,12 @@ export async function POST(req: Request) {
   const repairDate = metaResult.data.repairDate ?? new Date();
   const titleOk = metaResult.data.title;
 
+  const machineIdRaw = form.get("machineId");
+  const machineId =
+    typeof machineIdRaw === "string" && machineIdRaw.trim() !== "" && machineIdRaw !== "__none__"
+      ? machineIdRaw.trim()
+      : undefined;
+
   if (!(file instanceof Blob)) {
     return NextResponse.json({ ok: false, error: "missing_file" }, { status: 400 });
   }
@@ -67,14 +74,22 @@ export async function POST(req: Request) {
 
   const safeName = uploadedName.endsWith(".pdf") ? uploadedName : `${uploadedName}.pdf`;
 
-  await RepairsService.createRepairPdfRecord({
-    title: titleOk,
-    repairDate,
-    storedFileKey: key,
-    mimeType: "application/pdf",
-    fileName: safeName,
-    fileSize: buf.byteLength,
-  });
+  try {
+    await RepairsService.createRepairPdfRecord({
+      title: titleOk,
+      repairDate,
+      storedFileKey: key,
+      mimeType: "application/pdf",
+      fileName: safeName,
+      fileSize: buf.byteLength,
+      machineId,
+    });
+  } catch (e) {
+    if (e instanceof ActionError) {
+      return NextResponse.json({ ok: false, error: "validation", message: e.message }, { status: 400 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true });
 }
