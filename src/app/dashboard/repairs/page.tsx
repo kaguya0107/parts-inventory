@@ -42,6 +42,7 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
     title: r.title,
     fileName: r.fileName,
     machineLabel: machineLabel(r),
+    machineId: r.machineId,
   }));
 
   const filterBanner =
@@ -53,6 +54,9 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
             {filterMachine.customer.name} / {filterMachine.modelName} / {filterMachine.unitNo}
           </span>
         </span>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/dashboard/machines/${filterMachine.id}`}>保有機ページ</Link>
+        </Button>
         <Button variant="outline" size="sm" asChild>
           <Link href="/dashboard/repairs">解除</Link>
         </Button>

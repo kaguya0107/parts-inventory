@@ -43,7 +43,7 @@ export async function createRepairPdfRecord(input: {
   });
 }
 
-export async function deleteRepairRecord(recordId: string): Promise<void> {
+export async function deleteRepairRecord(recordId: string): Promise<{ machineId: string | null }> {
   const record = await prisma.repairHistory.findUnique({ where: { id: recordId } });
   if (!record) throw new ActionError("ファイルが見つかりません");
 
@@ -55,7 +55,9 @@ export async function deleteRepairRecord(recordId: string): Promise<void> {
     /* ignore missing file */
   }
 
+  const machineId = record.machineId;
   await prisma.repairHistory.delete({ where: { id: recordId } });
+  return { machineId };
 }
 
 export type RepairHistoryListParams = {
