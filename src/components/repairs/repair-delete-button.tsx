@@ -1,15 +1,14 @@
 "use client";
 
-import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteRepairRecord } from "@/features/repairs/actions";
-import { notifyActionResult } from "@/lib/toast-action";
+import { useActionResultTransition } from "@/hooks/use-action-result-transition";
 import { Button } from "@/components/ui/button";
 
 export function RepairDeleteButton({ recordId }: { recordId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, run } = useActionResultTransition();
 
   return (
     <Button
@@ -18,15 +17,10 @@ export function RepairDeleteButton({ recordId }: { recordId: string }) {
       size="sm"
       className="text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
       disabled={pending}
-      onClick={() =>
-        startTransition(async () => {
-          if (!confirm("この記録とファイルを削除してもよいですか？")) return;
-          const res = await deleteRepairRecord(recordId);
-          notifyActionResult(res, "削除しました");
-          if (!res.ok) return;
-          router.refresh();
-        })
-      }
+      onClick={() => {
+        if (!confirm("この記録とファイルを削除してもよいですか？")) return;
+        run(() => deleteRepairRecord(recordId), { okMessage: "削除しました", onSuccess: () => router.refresh() });
+      }}
     >
       {pending ? "…" : "削除"}
     </Button>

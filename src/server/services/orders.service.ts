@@ -168,6 +168,25 @@ export async function deleteOrderLine(orderLineId: string): Promise<{ orderId: s
   });
 }
 
+export async function listOrdersForDashboard(take = 200) {
+  return prisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+    take,
+    include: {
+      _count: { select: { lines: true } },
+    },
+  });
+}
+
+export async function getOrderWithLines(orderId: string) {
+  return prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      lines: { include: { part: true }, orderBy: { createdAt: "asc" } },
+    },
+  });
+}
+
 export async function updateOrderLine(input: {
   orderLineId: string;
   orderedQty: number;

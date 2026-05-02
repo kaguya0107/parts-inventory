@@ -1,46 +1,20 @@
 import Link from "next/link";
 
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
 import { PartCreateDialog } from "@/components/parts/part-create-dialog";
 import { PartsDataTable, type PartsTableRow } from "@/components/parts/parts-data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { prisma } from "@/lib/db";
 import { yen } from "@/lib/utils";
+import { listPartsForMasterPage } from "@/server/services/parts.service";
 
 type SearchShape = Record<string, string | string[] | undefined>;
 
-async function loader(q?: string | null) {
-  const trimmed = q?.trim() ?? "";
-
-  const where =
-    trimmed.length > 0
-      ? {
-          OR: [
-            { name: { contains: trimmed, mode: "insensitive" as const } },
-            { oemPartNo: { contains: trimmed, mode: "insensitive" as const } },
-            { aftermarketNo: { contains: trimmed, mode: "insensitive" as const } },
-            { compatibleModels: { contains: trimmed, mode: "insensitive" as const } },
-          ],
-        }
-      : undefined;
-
-  return prisma.part.findMany({
-    where,
-    orderBy: { name: "asc" },
-    take: 250,
-  });
-}
-
-export default async function PartsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchShape>;
-}) {
+export default async function PartsPage({ searchParams }: { searchParams: Promise<SearchShape> }) {
   const params = await searchParams;
   const qRaw = typeof params.q === "string" ? params.q : "";
-  const parts = await loader(qRaw);
+  const parts = await listPartsForMasterPage({ query: qRaw });
 
   const rows: PartsTableRow[] = parts.map((part) => ({
     id: part.id,
@@ -52,7 +26,7 @@ export default async function PartsPage({
   }));
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title="部品マスタ"
         description="品番・単価・現在庫と履歴ログを統合運用できます。一覧は並べ替えとクライアント側の細かな絞り込みが可能です（上部の送信検索とも併用可）。"
@@ -69,7 +43,7 @@ export default async function PartsPage({
           </div>
         }
       />
-      <MotionFade className="flex flex-1 flex-col gap-5 px-5 py-8 sm:px-8">
+      <DashboardContent>
         <form className="flex flex-wrap gap-2" action="/dashboard/parts" method="get">
           <Input
             name="q"
@@ -83,7 +57,7 @@ export default async function PartsPage({
         </form>
 
         <PartsDataTable data={rows} />
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

@@ -1,23 +1,20 @@
 import Link from "next/link";
 
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
 import {
   MachinesDataTable,
   MachineCreateDialog,
   type MachineTableRow,
 } from "@/components/machines/machines-data-table";
 import { Button } from "@/components/ui/button";
-import { prisma } from "@/lib/db";
+import { listCustomersAlphabetical } from "@/server/services/customers.service";
+import { listMachinesWithCustomersForDashboard } from "@/server/services/machines.service";
 
 export default async function MachinesPage() {
   const [customers, machines] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" }, take: 600 }),
-    prisma.machine.findMany({
-      orderBy: { modelName: "asc" },
-      include: { customer: true },
-      take: 1000,
-    }),
+    listCustomersAlphabetical(600),
+    listMachinesWithCustomersForDashboard(),
   ]);
 
   const tableRows: MachineTableRow[] = machines.map((m) => ({
@@ -30,7 +27,7 @@ export default async function MachinesPage() {
   }));
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title="保有機"
         description="全顧客の保有機一覧。テーブルをソート・検索できます。重複しないよう型式／号機の組み合わせが制約されています。"
@@ -44,9 +41,9 @@ export default async function MachinesPage() {
         }
       />
 
-      <MotionFade className="flex flex-col gap-6 px-5 py-8 sm:px-8">
+      <DashboardContent className="gap-6">
         <MachinesDataTable data={tableRows} />
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

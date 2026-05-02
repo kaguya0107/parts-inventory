@@ -1,15 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
+import { DashboardPageFrame, DashboardContent } from "@/components/layout/dashboard-page-frame";
+import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { CancelOrderButton } from "@/components/orders/cancel-order-button";
 import { ReceiveLineControl } from "@/components/orders/receive-line-control";
 import { AppendOrderLineForm } from "@/components/orders/append-order-line-form";
 import { OrderHeaderEditForm } from "@/components/orders/order-header-edit-form";
 import { OrderLineManage } from "@/components/orders/order-line-manage";
-import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
-import { prisma } from "@/lib/db";
-import { jpDateLabel } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -19,26 +17,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { orderStatusLabel, orderLineStatusLabel } from "@/lib/labels";
+import { jpDateLabel } from "@/lib/utils";
+import { getOrderWithLines } from "@/server/services/orders.service";
+import { listPartsAlphabetical } from "@/server/services/parts.service";
 
 type ParamsPromise = Promise<{ id: string }>;
-
 
 export default async function OrderDetailPage(props: { params: ParamsPromise }) {
   const { id } = await props.params;
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: { lines: { include: { part: true }, orderBy: { createdAt: "asc" } } },
-  });
+  const [order, parts] = await Promise.all([getOrderWithLines(id), listPartsAlphabetical()]);
 
   if (!order) return notFound();
-
-  const parts = await prisma.part.findMany({ orderBy: { name: "asc" } });
 
   const canModify = order.status !== "CANCELLED";
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col">
+    <DashboardPageFrame minHeight="screen">
       <DashboardHeader
         title="注文明細／入荷"
         description={`注文状態：${orderStatusLabel[order.status]}／発注先：${order.supplierName ?? "—"}`}
@@ -49,7 +44,7 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
         }
       />
 
-      <MotionFade className="flex flex-col gap-6 px-8 py-6">
+      <DashboardContent className="gap-6 px-8 py-6">
         <div className="grid gap-1 text-sm">
           <p>注文日：{jpDateLabel(order.orderDate)}</p>
           <p className="whitespace-pre-line text-muted-foreground">{order.memo ?? "備考メモなし"}</p>
@@ -126,7 +121,7 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
             })}
           </TableBody>
         </Table>
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

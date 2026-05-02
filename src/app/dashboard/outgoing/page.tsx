@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { OutgoingFilteredBoard, type OutgoingSlipSerialized } from "@/components/outgoing/outgoing-filtered-board";
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
+import { OutgoingFilteredBoard, type OutgoingSlipSerialized } from "@/components/outgoing/outgoing-filtered-board";
 import { Button } from "@/components/ui/button";
 import { listUsageHistoriesForDashboard } from "@/server/services/usage-history.service";
 
@@ -25,7 +25,7 @@ export default async function OutgoingListPage() {
   }));
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title="出庫（使用）"
         description="顧客・機番との紐付けでトレースしやすく。カード一覧は並び順を保ちつつ、この画面だけで細かく絞り込めます。"
@@ -35,9 +35,9 @@ export default async function OutgoingListPage() {
           </Button>
         }
       />
-      <MotionFade className="flex flex-1 flex-col gap-2 px-5 py-6 sm:px-8">
+      <DashboardContent className="gap-2 py-6">
         <OutgoingFilteredBoard slips={slips} />
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

@@ -37,6 +37,38 @@ export async function updateMachine(
   });
 }
 
+export async function listMachinesWithCustomersForDashboard(take = 1000) {
+  return prisma.machine.findMany({
+    orderBy: { modelName: "asc" },
+    include: { customer: true },
+    take,
+  });
+}
+
+export async function getMachineWithCustomer(machineId: string) {
+  return prisma.machine.findUnique({
+    where: { id: machineId },
+    include: { customer: true },
+  });
+}
+
+/** Ordered for repair-PDF machine select UI. */
+export async function listMachinesForRepairPdfSelect(take = 1500) {
+  return prisma.machine.findMany({
+    orderBy: [{ customer: { name: "asc" } }, { modelName: "asc" }, { unitNo: "asc" }],
+    include: { customer: true },
+    take,
+  });
+}
+
+export async function listMachinesForOutgoing(take = 500) {
+  return prisma.machine.findMany({
+    include: { customer: true },
+    orderBy: { modelName: "asc" },
+    take,
+  });
+}
+
 export async function deleteMachine(machineId: string): Promise<void> {
   const refs = await prisma.usageHistory.count({ where: { machineId } });
   if (refs > 0) throw new ActionError("出庫で利用された機番は削除できません");

@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { CustomerEditForms } from "@/components/customers/customer-edit-forms";
 import { DeleteMachineButton } from "@/components/customers/delete-machine-button";
 import { MachineMiniForm } from "@/components/customers/machine-mini-form";
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
-import { prisma } from "@/lib/db";
 import {
   Table,
   TableBody,
@@ -14,26 +13,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getCustomerWithMachines } from "@/server/services/customers.service";
 
 type ParamsPromise = Promise<{ id: string }>;
 
 export default async function CustomerDetailPage(props: { params: ParamsPromise }) {
   const { id } = await props.params;
 
-  const customer = await prisma.customer.findUnique({
-    where: { id },
-    include: {
-      machines: { orderBy: { modelName: "asc" } },
-    },
-  });
+  const customer = await getCustomerWithMachines(id);
 
   if (!customer) return notFound();
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col">
+    <DashboardPageFrame minHeight="screen">
       <DashboardHeader title="顧客詳細" description={`${customer.name}／${customer.municipality}`} />
 
-      <MotionFade className="flex flex-col gap-10 px-8 py-6">
+      <DashboardContent className="gap-10 px-8 py-6">
         <CustomerEditForms customer={customer} />
 
         <section className="space-y-3">
@@ -63,7 +58,7 @@ export default async function CustomerDetailPage(props: { params: ParamsPromise 
             </TableBody>
           </Table>
         </section>
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

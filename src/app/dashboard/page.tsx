@@ -3,58 +3,11 @@ import Link from "next/link";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { MotionFade } from "@/components/motion-fade";
 import { Button } from "@/components/ui/button";
-import { prisma } from "@/lib/db";
 import { jpDateLabel } from "@/lib/utils";
-import { Prisma } from "@prisma/client";
-
-async function kpis() {
-  const [partsCount, qtyAgg, openOrders, movesToday] = await Promise.all([
-    prisma.part.count(),
-    prisma.part.aggregate({ _sum: { currentQty: true } }),
-    prisma.order.count({
-      where: { status: { in: ["OPEN", "PARTIALLY_RECEIVED"] } },
-    }),
-    prisma.inventoryLog.count({
-      where: {
-        occurredAt: {
-          gte: new Date(new Date().toDateString()),
-        },
-      },
-    }),
-  ]);
-
-  const rows =
-    qtyAgg._sum?.currentQty && qtyAgg._sum.currentQty > 0
-      ? await prisma.part.findMany({
-          where: { currentQty: { gt: 0 } },
-          select: { purchasePrice: true, currentQty: true },
-        })
-      : [];
-
-  const stockValueApprox = rows.reduce((acc, row) => {
-    if (!row.purchasePrice) return acc;
-    return acc.plus(row.purchasePrice.mul(row.currentQty));
-  }, new Prisma.Decimal(0));
-
-  const stockDisplay = rows.length
-    ? new Intl.NumberFormat("ja-JP", {
-        style: "currency",
-        currency: "JPY",
-        maximumFractionDigits: 0,
-      }).format(stockValueApprox.toNumber())
-    : "評価可能なデータがありません（仕入価格が未入力の為）";
-
-  return {
-    parts: partsCount,
-    qty: qtyAgg._sum.currentQty ?? 0,
-    openOrders,
-    movesToday,
-    stockDisplay,
-  };
-}
+import { getDashboardKpis } from "@/server/services/dashboard-metrics.service";
 
 export default async function DashboardPage() {
-  const metrics = await kpis();
+  const metrics = await getDashboardKpis();
 
   return (
     <main className="flex min-h-[70vh] flex-1 flex-col">

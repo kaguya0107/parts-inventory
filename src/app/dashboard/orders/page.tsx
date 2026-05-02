@@ -1,27 +1,17 @@
 import Link from "next/link";
 
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
 import {
   OrdersDataTable,
   type OrderTableRow,
 } from "@/components/orders/orders-data-table";
 import { Button } from "@/components/ui/button";
 import { orderStatusLabel } from "@/lib/labels";
-import { prisma } from "@/lib/db";
-
-async function loader() {
-  return prisma.order.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      _count: { select: { lines: true } },
-    },
-  });
-}
+import { listOrdersForDashboard } from "@/server/services/orders.service";
 
 export default async function OrdersPage() {
-  const orders = await loader();
+  const orders = await listOrdersForDashboard();
 
   const rows: OrderTableRow[] = orders.map((order) => ({
     id: order.id,
@@ -32,7 +22,7 @@ export default async function OrdersPage() {
   }));
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title="注文・入荷"
         description="未完の調達〜入荷まわりの進捗。一覧は状態・発注先で素早く探せます。"
@@ -43,9 +33,9 @@ export default async function OrdersPage() {
         }
       />
 
-      <MotionFade className="flex flex-col gap-6 px-5 py-8 sm:px-8">
+      <DashboardContent className="gap-6">
         <OrdersDataTable data={rows} />
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }

@@ -5,6 +5,8 @@ import type { DbClient } from "@/server/db/types";
 import { prisma } from "@/lib/db";
 import { ActionError } from "@/lib/server/action-guard";
 
+const searchMode = "insensitive" as const;
+
 export type PartWriteInput = {
   name: string;
   oemPartNo?: string;
@@ -73,4 +75,46 @@ export async function deletePart(partId: string): Promise<void> {
   }
 
   await prisma.$transaction((tx) => deletePartTx(tx, partId));
+}
+
+export async function findPartById(id: string) {
+  return prisma.part.findUnique({ where: { id } });
+}
+
+/** Parts master list with optional server-side name/part-no search. */
+export async function listPartsForMasterPage(params: { query?: string; take?: number }) {
+  const take = params.take ?? 250;
+  const trimmed = params.query?.trim() ?? "";
+
+  const where: Prisma.PartWhereInput | undefined =
+    trimmed.length > 0
+      ? {
+          OR: [
+            { name: { contains: trimmed, mode: searchMode } },
+            { oemPartNo: { contains: trimmed, mode: searchMode } },
+            { aftermarketNo: { contains: trimmed, mode: searchMode } },
+            { compatibleModels: { contains: trimmed, mode: searchMode } },
+          ],
+        }
+      : undefined;
+
+  return prisma.part.findMany({
+    where,
+    orderBy: { name: "asc" },
+    take,
+  });
+}
+
+/** Lightweight rows for order-line pickers and outgoing forms. */
+export async function listPartsForStockPickers(take = 1200) {
+  return prisma.part.findMany({
+    orderBy: { name: "asc" },
+    take,
+    select: { id: true, name: true, currentQty: true },
+  });
+}
+
+/** Full rows for append-line dropdowns that need list prices, etc. */
+export async function listPartsAlphabetical(take = 3000) {
+  return prisma.part.findMany({ orderBy: { name: "asc" }, take });
 }

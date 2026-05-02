@@ -1,10 +1,9 @@
 "use client";
 
-import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createCustomer } from "@/features/customers/actions";
-import { notifyActionResult } from "@/lib/toast-action";
+import { useActionResultTransition } from "@/hooks/use-action-result-transition";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +16,7 @@ export function CustomerQuickForm({
   onFinish?: () => void;
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const { pending, errorMessage, run } = useActionResultTransition();
 
   return (
     <form
@@ -29,18 +27,15 @@ export function CustomerQuickForm({
       }
       onSubmit={(e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        startTransition(async () => {
-          setMessage(null);
-          const res = await createCustomer(fd);
-          notifyActionResult(res, "登録しました");
-          if (!res.ok) {
-            setMessage(res.message);
-            return;
-          }
-          e.currentTarget.reset();
-          onFinish?.();
-          router.refresh();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        run(() => createCustomer(fd), {
+          okMessage: "登録しました",
+          onSuccess: () => {
+            form.reset();
+            onFinish?.();
+            router.refresh();
+          },
         });
       }}
     >
@@ -54,7 +49,7 @@ export function CustomerQuickForm({
           <Input id="cust-muni" name="municipality" placeholder="〇〇県△△町" required />
         </div>
       </div>
-      {message ? <p className="text-sm text-destructive">{message}</p> : null}
+      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
       <div className="flex flex-wrap gap-2 pt-2">
         <Button type="submit" disabled={pending} className="transition-transform active:scale-[0.985]">
           {pending ? "登録中…" : "顧客を追加"}

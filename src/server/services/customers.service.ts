@@ -9,6 +9,29 @@ export async function updateCustomer(id: string, input: { name: string; municipa
   return prisma.customer.update({ where: { id }, data: input });
 }
 
+export async function listCustomersWithMachineCounts(take = 500) {
+  return prisma.customer.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      _count: { select: { machines: true } },
+    },
+    take,
+  });
+}
+
+export async function listCustomersAlphabetical(take = 5000) {
+  return prisma.customer.findMany({ orderBy: { name: "asc" }, take });
+}
+
+export async function getCustomerWithMachines(id: string) {
+  return prisma.customer.findUnique({
+    where: { id },
+    include: {
+      machines: { orderBy: { modelName: "asc" } },
+    },
+  });
+}
+
 export async function deleteCustomer(id: string): Promise<void> {
   const dependents = await prisma.machine.count({ where: { customerId: id } });
   if (dependents) throw new ActionError("保有機が紐づいている顧客は削除できません");

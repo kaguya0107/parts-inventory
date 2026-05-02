@@ -1,21 +1,19 @@
 import Link from "next/link";
 
+import { DashboardContent, DashboardPageFrame } from "@/components/layout/dashboard-page-frame";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { MotionFade } from "@/components/motion-fade";
 import {
   RepairsDataTable,
   type RepairTableRow,
 } from "@/components/repairs/repairs-data-table";
 import { jpDateLabel } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { getMachineWithCustomer } from "@/server/services/machines.service";
 import { listRepairHistories } from "@/server/services/repairs.service";
-import { prisma } from "@/lib/db";
 
 type SearchShape = Record<string, string | string[] | undefined>;
 
-function machineLabel(
-  row: Awaited<ReturnType<typeof listRepairHistories>>[number],
-): string {
+function machineLabel(row: Awaited<ReturnType<typeof listRepairHistories>>[number]): string {
   const m = row.machine;
   if (!m) return "—";
   return `${m.customer.name} / ${m.modelName} / ${m.unitNo}`;
@@ -27,12 +25,7 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
 
   const [records, filterMachine] = await Promise.all([
     listRepairHistories({ machineId: machineIdFilter, take: 250 }),
-    machineIdFilter
-      ? prisma.machine.findUnique({
-          where: { id: machineIdFilter },
-          include: { customer: true },
-        })
-      : null,
+    machineIdFilter ? getMachineWithCustomer(machineIdFilter) : null,
   ]);
 
   const rows: RepairTableRow[] = records.map((r) => ({
@@ -71,7 +64,7 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
     ) : null;
 
   return (
-    <div className="flex min-h-[70vh] flex-1 flex-col">
+    <DashboardPageFrame>
       <DashboardHeader
         title="修理履歴"
         description="PDF をファイルとして保管します。保有機に紐づけると一覧・検索しやすくなります。"
@@ -82,7 +75,7 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
         }
       />
 
-      <MotionFade className="flex flex-col gap-5 px-5 py-8 sm:px-8">
+      <DashboardContent>
         {filterBanner}
         <RepairsDataTable data={rows} />
 
@@ -91,7 +84,7 @@ export default async function RepairsPage(props: { searchParams: Promise<SearchS
             {machineIdFilter ? "この保有機に紐づく修理履歴はまだありません。" : "データがありません。PDF を追加してください。"}
           </p>
         ) : null}
-      </MotionFade>
-    </div>
+      </DashboardContent>
+    </DashboardPageFrame>
   );
 }
