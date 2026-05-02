@@ -2,6 +2,10 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 
+/**
+ * Read models for the inventory UI. On-hand totals come from `Part.currentQty`, which is
+ * kept in sync with `inventory_logs` by purchase receipt and usage services.
+ */
 const searchMode = "insensitive" as const;
 
 export type InventoryLogListParams = {

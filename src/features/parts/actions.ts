@@ -15,7 +15,7 @@ import {
 } from "@/lib/server/action-guard";
 import { toOptionalDecimal } from "@/lib/decimal";
 
-async function hydratePartPayload(input: Record<string, FormDataEntryValue>) {
+function hydratePartWrite(input: Record<string, FormDataEntryValue>): PartsService.PartWriteInput {
   const parsed = parseForm(partFormSchema, input);
   return {
     name: parsed.name.trim(),
@@ -27,26 +27,15 @@ async function hydratePartPayload(input: Record<string, FormDataEntryValue>) {
     compatibleModels:
       parsed.compatibleModels?.trim() === "" ? undefined : parsed.compatibleModels?.trim(),
     markupRate: toOptionalDecimal(parsed.markupRate ?? undefined),
-    targetQty: parsed.currentQty,
   };
 }
 
 export async function createPart(formData: FormData): Promise<ActionResult> {
   return guardAction(async () => {
     await requireUser();
-    const row = await hydratePartPayload(Object.fromEntries(formData.entries()));
+    const payload = hydratePartWrite(Object.fromEntries(formData.entries()));
 
-    await PartsService.createPart({
-      name: row.name,
-      oemPartNo: row.oemPartNo,
-      aftermarketNo: row.aftermarketNo,
-      oemListPrice: row.oemListPrice,
-      purchasePrice: row.purchasePrice,
-      salePrice: row.salePrice,
-      compatibleModels: row.compatibleModels,
-      markupRate: row.markupRate,
-      initialQty: row.targetQty,
-    });
+    await PartsService.createPart(payload);
 
     revalidatePath("/dashboard/parts");
     revalidatePath("/dashboard/inventory");
@@ -59,19 +48,9 @@ export async function updatePart(partId: string, formData: FormData): Promise<Ac
     const prev = await prisma.part.findUnique({ where: { id: partId } });
     if (!prev) throw new ActionError("部品が見つかりません");
 
-    const row = await hydratePartPayload(Object.fromEntries(formData.entries()));
+    const payload = hydratePartWrite(Object.fromEntries(formData.entries()));
 
-    await PartsService.updatePart(partId, prev.currentQty, {
-      name: row.name,
-      oemPartNo: row.oemPartNo,
-      aftermarketNo: row.aftermarketNo,
-      oemListPrice: row.oemListPrice,
-      purchasePrice: row.purchasePrice,
-      salePrice: row.salePrice,
-      compatibleModels: row.compatibleModels,
-      markupRate: row.markupRate,
-      targetQty: row.targetQty,
-    });
+    await PartsService.updatePart(partId, payload);
 
     revalidatePath("/dashboard/parts");
     revalidatePath(`/dashboard/parts/${partId}`);

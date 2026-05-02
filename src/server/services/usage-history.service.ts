@@ -4,6 +4,13 @@ import { applyStockDelta } from "@/server/inventory/stock-delta";
 import { prisma } from "@/lib/db";
 import { ActionError } from "@/lib/server/action-guard";
 
+/**
+ * Usage (出庫) is the path that decreases stock (outgoing): for each line we insert
+ * a `USAGE_OUT` ledger row (negative `quantity`) and apply the matching negative delta
+ * to `Part.currentQty` in one transaction (after all lines are created, so the tx
+ * rolls back entirely if any quantity check fails).
+ */
+
 export type OutgoingLineInput = { partId: string; quantity: number };
 
 export type CreateUsageSlipPayload = {
@@ -39,6 +46,8 @@ export async function createUsageSlipTx(tx: DbClient, payload: CreateUsageSlipPa
     },
   });
 
+  // Record every outbound line in the ledger first; then apply stock decrements.
+  // If any decrement fails (e.g. negative stock), the whole transaction aborts — no partial slip.
   for (const line of payload.lines) {
     const created = await tx.usageHistoryLine.create({
       data: {

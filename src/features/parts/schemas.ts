@@ -14,5 +14,4 @@ export const partFormSchema = z.object({
   salePrice: optionalText,
   compatibleModels: z.string().optional(),
   markupRate: optionalText,
-  currentQty: z.coerce.number().int().nonnegative(),
 });

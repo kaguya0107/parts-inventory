@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
 import type { DbClient } from "@/server/db/types";
-import { applyStockDelta } from "@/server/inventory/stock-delta";
 
 import { prisma } from "@/lib/db";
 import { ActionError } from "@/lib/server/action-guard";
@@ -17,80 +16,60 @@ export type PartWriteInput = {
   markupRate?: Prisma.Decimal | null;
 };
 
-export type PartCreatePayload = PartWriteInput & { initialQty: number };
-
-export type PartUpdatePayload = PartWriteInput & { targetQty: number };
-
-export async function createPartTx(tx: DbClient, payload: PartCreatePayload): Promise<{ id: string }> {
-  const { initialQty, ...meta } = payload;
-
+/**
+ * Creates a SKU with **zero** stock. Stock increases only via purchase receipt
+ * (`PURCHASE_IN` logs); see `orders.service`.
+ */
+export async function createPartTx(tx: DbClient, payload: PartWriteInput): Promise<{ id: string }> {
   const row = await tx.part.create({
     data: {
-      ...meta,
+      ...payload,
       currentQty: 0,
     },
   });
 
-  if (initialQty > 0) {
-    await tx.inventoryLog.create({
-      data: {
-        partId: row.id,
-        logType: "ADJUSTMENT",
-        quantity: initialQty,
-        note: "初期残高（新規部品登録）",
-      },
-    });
-    await applyStockDelta(tx, row.id, initialQty);
-  }
-
   return { id: row.id };
 }
 
-export async function createPart(payload: PartCreatePayload): Promise<{ id: string }> {
+export async function createPart(payload: PartWriteInput): Promise<{ id: string }> {
   return prisma.$transaction((tx) => createPartTx(tx, payload));
 }
 
-export async function updatePartTx(
-  tx: DbClient,
-  partId: string,
-  prevQty: number,
-  payload: PartUpdatePayload,
-): Promise<void> {
-  const { targetQty, ...meta } = payload;
-  const delta = targetQty - prevQty;
-
+/**
+ * Updates master attributes only. `currentQty` is not accepted here — stock changes
+ * only through the inventory ledger (receive + usage).
+ */
+export async function updatePartTx(tx: DbClient, partId: string, payload: PartWriteInput): Promise<void> {
   await tx.part.update({
     where: { id: partId },
-    data: meta,
+    data: payload,
   });
-
-  if (delta !== 0) {
-    await tx.inventoryLog.create({
-      data: {
-        partId,
-        logType: "ADJUSTMENT",
-        quantity: delta,
-        note: "マスタ画面上で在庫数を修正しました",
-      },
-    });
-    await applyStockDelta(tx, partId, delta);
-  }
 }
 
-export async function updatePart(partId: string, prevQty: number, payload: PartUpdatePayload): Promise<void> {
-  return prisma.$transaction((tx) => updatePartTx(tx, partId, prevQty, payload));
+export async function updatePart(partId: string, payload: PartWriteInput): Promise<void> {
+  return prisma.$transaction((tx) => updatePartTx(tx, partId, payload));
 }
 
 export async function deletePartTx(tx: DbClient, partId: string): Promise<void> {
-  await tx.inventoryLog.deleteMany({ where: { partId } });
   await tx.part.delete({ where: { id: partId } });
 }
 
+/**
+ * Deletes a part only if it was never stocked or referenced — **inventory logs are never
+ * deleted**, so any ledger row blocks removal.
+ */
 export async function deletePart(partId: string): Promise<void> {
-  const orders = await prisma.orderLine.count({ where: { partId } });
-  const usageLines = await prisma.usageHistoryLine.count({ where: { partId } });
+  const [orders, usageLines, ledgerRows] = await Promise.all([
+    prisma.orderLine.count({ where: { partId } }),
+    prisma.usageHistoryLine.count({ where: { partId } }),
+    prisma.inventoryLog.count({ where: { partId } }),
+  ]);
+
   if (orders + usageLines > 0) {
     throw new ActionError("注文または出庫で利用されている部品は削除できません");
+  }
+  if (ledgerRows > 0) {
+    throw new ActionError("在庫履歴がある部品は削除できません（履歴は変更しません）");
   }
 
   await prisma.$transaction((tx) => deletePartTx(tx, partId));

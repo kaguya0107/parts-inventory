@@ -3,8 +3,31 @@ import type { DbClient } from "@/server/db/types";
 import { ActionError } from "@/lib/server/action-guard";
 
 /**
- * Atomically changes `Part.currentQty` by `delta` (negative = outbound).
- * Decrements use `updateMany` with `currentQty >= needed` so concurrent usage cannot oversell.
+ * Inventory model (authoritative rules)
+ * -------------------------------------
+ * - On-hand quantity is NOT edited on the part master screen. It is derived from the
+ *   append-only `inventory_logs` ledger:
+ *
+ *       onHand == sum(InventoryLog.quantity) for that part
+ *
+ * - Increases (incoming) are written only when purchase orders are **received**
+ *   (`logType: PURCHASE_IN`, positive `quantity`), in the same DB transaction as the
+ *   receipt line update (see `orders.service` → `receiveOrderLineTx`).
+ *
+ * - Decreases (outgoing) are written only from **usage** (出庫) slips
+ *   (`logType: USAGE_OUT`, negative `quantity`), in the same transaction as stock update
+ *   (see `usage-history.service` → `createUsageSlipTx`).
+ *
+ * - `Part.currentQty` is a cached sum updated in those transactions for fast reads;
+ *   it must stay equal to the ledger sum. Application code must change it only via
+ *   `applyStockDelta` together with creating the corresponding log row — never by
+ *   arbitrary part updates.
+ *
+ * - Ledger rows are immutable in normal operation: we do not delete or rewrite them;
+ *   parts with any ledger history cannot be deleted (see `parts.service` → `deletePart`).
+ *
+ * - Negative stock is forbidden: decrements use a conditional update so concurrent
+ *   usage cannot drive quantity below zero.
  */
 export async function applyStockDelta(tx: DbClient, partId: string, delta: number): Promise<void> {
   if (delta === 0) return;
@@ -34,7 +57,10 @@ export async function applyStockDelta(tx: DbClient, partId: string, delta: numbe
   }
 }
 
-/** Recompute `currentQty` from ledger sum (repair drift or admin sanity). */
+/**
+ * Rebuilds `currentQty` from the ledger sum (e.g. after manual DB repair).
+ * Not used in normal request flows; prefer fixing data and running this from a one-off script.
+ */
 export async function syncPartQtyFromLedger(tx: DbClient, partId: string): Promise<void> {
   const agg = await tx.inventoryLog.aggregate({
     where: { partId },
