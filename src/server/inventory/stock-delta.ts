@@ -26,10 +26,15 @@ import { ActionError } from "@/lib/server/action-guard";
  * - Ledger rows are immutable in normal operation: we do not delete or rewrite them;
  *   parts with any ledger history cannot be deleted (see `parts.service` → `deletePart`).
  *
- * - Negative stock is forbidden: decrements use a conditional update so concurrent
- *   usage cannot drive quantity below zero.
+ * - Negative stock is forbidden by default. Outbound lines created as **ad-hoc** parts may pass
+ *   `{ allowNegative: true }` so usage can be recorded when goods were never booked in (伝票未到着).
  */
-export async function applyStockDelta(tx: DbClient, partId: string, delta: number): Promise<void> {
+export async function applyStockDelta(
+  tx: DbClient,
+  partId: string,
+  delta: number,
+  opts?: { allowNegative?: boolean },
+): Promise<void> {
   if (delta === 0) return;
 
   if (delta > 0) {
@@ -41,6 +46,14 @@ export async function applyStockDelta(tx: DbClient, partId: string, delta: numbe
   }
 
   const need = -delta;
+  if (opts?.allowNegative) {
+    await tx.part.update({
+      where: { id: partId },
+      data: { currentQty: { decrement: need } },
+    });
+    return;
+  }
+
   const { count } = await tx.part.updateMany({
     where: { id: partId, currentQty: { gte: need } },
     data: { currentQty: { decrement: need } },

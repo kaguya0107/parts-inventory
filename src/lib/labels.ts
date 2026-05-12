@@ -1,10 +1,15 @@
-import type { OrderStatus, InventoryLogType } from "@prisma/client";
+import type { InventoryLogType, OrderDocumentType, OrderStatus } from "@prisma/client";
 
 export const orderStatusLabel: Record<OrderStatus, string> = {
   OPEN: "発注済み",
   PARTIALLY_RECEIVED: "一部入荷",
   RECEIVED: "入荷完了",
   CANCELLED: "取消",
+};
+
+export const orderDocumentTypeLabel: Record<OrderDocumentType, string> = {
+  PURCHASE_ORDER: "発注書",
+  QUOTE_REQUEST: "見積依頼",
 };
 
 export const orderLineStatusLabel = {

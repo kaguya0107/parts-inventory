@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { ActionError } from "@/lib/server/action-guard";
 import * as RepairsService from "@/server/services/repairs.service";
-import { saveRepairPdf } from "@/lib/storage/local";
+import { storeBufferPublic } from "@/lib/storage/binary-upload";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -67,23 +67,44 @@ export async function POST(req: Request) {
   const uploadedName =
     typeof (file as File).name === "string" ? (file as File).name : "document.pdf";
 
-  const { key } = await saveRepairPdf(
-    buf,
-    uploadedName.endsWith(".pdf") ? uploadedName : `${uploadedName}.pdf`,
-  );
-
   const safeName = uploadedName.endsWith(".pdf") ? uploadedName : `${uploadedName}.pdf`;
 
+  let stored: Awaited<ReturnType<typeof storeBufferPublic>>;
   try {
-    await RepairsService.createRepairPdfRecord({
-      title: titleOk,
-      repairDate,
-      storedFileKey: key,
-      mimeType: "application/pdf",
-      fileName: safeName,
-      fileSize: buf.byteLength,
-      machineId,
-    });
+    stored = await storeBufferPublic(buf, "repairs", safeName, "application/pdf");
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json(
+      { ok: false, error: "storage", message: "ファイルの保存に失敗しました（BLOB_READ_WRITE_TOKEN またはディスク）" },
+      { status: 500 },
+    );
+  }
+
+  try {
+    if (stored.storageKind === "BLOB") {
+      await RepairsService.createRepairPdfRecord({
+        title: titleOk,
+        repairDate,
+        storedFileKey: stored.storageRef,
+        mimeType: "application/pdf",
+        fileName: safeName,
+        fileSize: buf.byteLength,
+        machineId,
+        storageKind: "BLOB",
+        pdfUrl: stored.fileUrl,
+      });
+    } else {
+      await RepairsService.createRepairPdfRecord({
+        title: titleOk,
+        repairDate,
+        storedFileKey: stored.storageRef,
+        mimeType: "application/pdf",
+        fileName: safeName,
+        fileSize: buf.byteLength,
+        machineId,
+        storageKind: "LOCAL",
+      });
+    }
   } catch (e) {
     if (e instanceof ActionError) {
       return NextResponse.json({ ok: false, error: "validation", message: e.message }, { status: 400 });

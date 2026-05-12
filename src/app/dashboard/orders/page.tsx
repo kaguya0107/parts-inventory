@@ -7,7 +7,7 @@ import {
   type OrderTableRow,
 } from "@/components/orders/orders-data-table";
 import { Button } from "@/components/ui/button";
-import { orderStatusLabel } from "@/lib/labels";
+import { orderStatusLabel, orderDocumentTypeLabel } from "@/lib/labels";
 import { listOrdersForDashboard } from "@/server/services/orders.service";
 
 export default async function OrdersPage() {
@@ -17,6 +17,7 @@ export default async function OrdersPage() {
     id: order.id,
     sortKey: order.orderDate.toISOString(),
     statusLabel: orderStatusLabel[order.status],
+    docLabel: orderDocumentTypeLabel[order.documentType],
     supplier: order.supplierName ?? "—",
     lines: order._count.lines,
   }));

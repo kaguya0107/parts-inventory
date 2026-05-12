@@ -9,6 +9,7 @@ export type OrderTableRow = {
   id: string;
   sortKey: string;
   statusLabel: string;
+  docLabel: string;
   supplier: string;
   lines: number;
 };
@@ -20,6 +21,7 @@ const columns: ColumnDef<OrderTableRow>[] = [
     sortingFn: "basic",
     cell: ({ row }) => <span className="tabular-nums text-[13px]">{row.original.sortKey.slice(0, 10)}</span>,
   },
+  { accessorKey: "docLabel", header: "書類" },
   { accessorKey: "statusLabel", header: "状態" },
   { accessorKey: "supplier", header: "発注先" },
   {
@@ -42,6 +44,6 @@ const columns: ColumnDef<OrderTableRow>[] = [
 
 export function OrdersDataTable({ data }: { data: OrderTableRow[] }) {
   return (
-    <DataTable columns={columns} data={data} filterPlaceholder="状態・発注先・日付で絞り込み…" emptyLabel="注文がありません。" />
+    <DataTable columns={columns} data={data} filterPlaceholder="書類・状態・発注先・日付で絞り込み…" emptyLabel="注文がありません。" />
   );
 }

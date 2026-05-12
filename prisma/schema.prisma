@@ -62,6 +62,7 @@ model Machine {
   @@map("machines")
 }
 
+/// Set when the row was created for free-text outbound (no prior master); may carry negative `currentQty`.
 model Part {
   id               String             @id @default(cuid())
   name             String
@@ -74,6 +75,7 @@ model Part {
   markupRate       Decimal?           @db.Decimal(6, 4)
   /// Cached sum of `inventory_logs.quantity`; updated only with receipt & usage transactions — not edited on the part form.
   currentQty       Int                @default(0)
+  isAdHoc          Boolean            @default(false)
 
   orderLines        OrderLine[]
   usageLines        UsageHistoryLine[]
@@ -98,10 +100,25 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OrderDocumentType {
+  PURCHASE_ORDER
+  QUOTE_REQUEST
+}
+
+enum OrderLineSource {
+  MASTER
+  FREE_TEXT
+}
+
 enum OrderLineStatus {
   ORDERED
   PARTIALLY_RECEIVED
   RECEIVED
+}
+
+enum FileStorageKind {
+  LOCAL
+  BLOB
 }
 
 model Order {
@@ -110,8 +127,17 @@ model Order {
   memo         String?
   status       OrderStatus @default(OPEN)
   orderDate    DateTime    @default(now())
+  documentType OrderDocumentType @default(PURCHASE_ORDER)
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  /// Supplier quote response — amount
+  quoteReplyAmount   Decimal?    @db.Decimal(12, 2)
+  /// Supplier quote response — lead time / 納期 (free text)
+  quoteReplyLeadTime String?
 
-  lines OrderLine[]
+  lines       OrderLine[]
+  attachments OrderAttachment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -119,6 +145,7 @@ model Order {
   @@index([orderDate])
   @@index([status])
   @@index([supplierName])
+  @@index([documentType])
   @@map("orders")
 }
 
@@ -126,8 +153,15 @@ model OrderLine {
   id           String       @id @default(cuid())
   orderId      String
   order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  partId       String
-  part         Part          @relation(fields: [partId], references: [id])
+  /// Set when `lineSource` is MASTER; null for FREE_TEXT rows (documentation / 注文書のみ).
+  partId       String?
+  part         Part?         @relation(fields: [partId], references: [id], onDelete: SetNull)
+  lineSource   OrderLineSource @default(MASTER)
+  freeItemName     String?
+  freePartNo       String?
+  machineModel     String?
+  machineUnitNo    String?
+  machineEngineNo  String?
   orderedQty   Int
   receivedQty  Int           @default(0)
   unitCost     Decimal?      @db.Decimal(12, 2)
@@ -143,6 +177,25 @@ model OrderLine {
   @@map("order_lines")
 }
 
+model OrderAttachment {
+  id           String          @id @default(cuid())
+  orderId      String
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fileName     String
+  mimeType     String
+  fileSize     Int
+  storageKind  FileStorageKind @default(LOCAL)
+  /// Browser-openable URL (public blob) or app path `/api/order-attachments/.../file`
+  fileUrl      String
+  /// LOCAL: relative key under uploads; BLOB: full URL for `del()`
+  storageRef   String
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_attachments")
+}
+
 // ---- Stock ledger ----
 
 enum InventoryLogType {
@@ -155,7 +208,7 @@ model InventoryLog {
   /// Append-only stock movement (app does not update/delete rows in normal flows).
   id           String           @id @default(cuid())
   partId       String
-  part         Part              @relation(fields: [partId], references: [id])
+  part         Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
   logType      InventoryLogType
   quantity     Int
   occurredAt   DateTime         @default(now())
@@ -218,16 +271,18 @@ model UsageHistoryLine {
 // ---- Repairs ----
 
 model RepairHistory {
-  id             String   @id @default(cuid())
+  id             String          @id @default(cuid())
   title          String
-  repairDate     DateTime @default(now())
-  pdfUrl         String   @default("")
+  repairDate     DateTime        @default(now())
+  pdfUrl         String          @default("")
+  /// LOCAL: filename under UPLOAD_DIR; BLOB: full blob URL (used with `del`)
   storedFileKey  String
   fileName       String
-  mimeType       String   @default("application/pdf")
+  mimeType       String          @default("application/pdf")
   fileSize       Int
+  storageKind    FileStorageKind @default(LOCAL)
   machineId      String?
-  machine        Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  machine        Machine?        @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -35,8 +35,32 @@ export function OrderHeaderCreateForm({ initialError }: { initialError?: string 
       }}
     >
       <div className="space-y-2">
+        <Label htmlFor="documentType">書類種別</Label>
+        <select
+          id="documentType"
+          name="documentType"
+          className="h-10 w-full rounded-md border border-input px-3 text-sm"
+          defaultValue="PURCHASE_ORDER"
+        >
+          <option value="PURCHASE_ORDER">発注書</option>
+          <option value="QUOTE_REQUEST">見積依頼</option>
+        </select>
+      </div>
+      <div className="space-y-2">
         <Label htmlFor="supplierName">発注先</Label>
         <Input id="supplierName" name="supplierName" placeholder="会社名など" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="contactName">注文担当者名</Label>
+        <Input id="contactName" name="contactName" placeholder="氏名" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="contactPhone">連絡先（携帯）</Label>
+        <Input id="contactPhone" name="contactPhone" type="tel" placeholder="090-xxxx-xxxx" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="contactEmail">連絡先（メール）</Label>
+        <Input id="contactEmail" name="contactEmail" type="email" placeholder="name@example.com" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="memo">備考メモ</Label>
@@ -44,7 +68,7 @@ export function OrderHeaderCreateForm({ initialError }: { initialError?: string 
       </div>
       {message ? <p className="text-sm text-destructive">{message}</p> : null}
       <Button type="submit" disabled={pending}>
-        {pending ? "作成中..." : "注文を作成"}
+        {pending ? "作成中..." : "作成して明細へ"}
       </Button>
     </form>
   );

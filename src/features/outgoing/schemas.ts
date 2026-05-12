@@ -1,9 +1,21 @@
 import { z } from "zod";
 
-export const outgoingLineSchema = z.object({
-  partId: z.string().min(1),
-  quantity: z.coerce.number().int().positive(),
-});
+export const outgoingLineSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("master"),
+    partId: z.string().min(1),
+    quantity: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal("adHoc"),
+    quantity: z.number().int().positive(),
+    itemName: z.string().min(1),
+    partNo: z.string().optional(),
+    machineModel: z.string().optional(),
+    machineUnitNo: z.string().optional(),
+    machineEngineNo: z.string().optional(),
+  }),
+]);
 
 export const outgoingFormSchema = z.object({
   issueDate: z.string().optional(),

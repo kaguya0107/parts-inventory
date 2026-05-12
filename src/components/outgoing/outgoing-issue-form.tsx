@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+import type { OutgoingFormValues } from "@/features/outgoing/schemas";
+
 export type PartsOption = { id: string; name: string; currentQty: number };
 
 type Props = {
@@ -20,28 +22,57 @@ type Props = {
   parts: PartsOption[];
 };
 
-type Line = {
-  id: number;
-  partId: string;
-  quantity: number;
-};
+type LineState =
+  | { id: number; kind: "master"; partId: string; quantity: number }
+  | {
+      id: number;
+      kind: "adHoc";
+      quantity: number;
+      itemName: string;
+      partNo: string;
+      machineModel: string;
+      machineUnitNo: string;
+      machineEngineNo: string;
+    };
 
 export function OutgoingIssueForm(props: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [lines, setLines] = useState<Line[]>(() => [
+  const [lines, setLines] = useState<LineState[]>(() => [
     {
       id: Date.now(),
+      kind: "master",
       partId: props.parts[0]?.id ?? "",
       quantity: 1,
     },
   ]);
 
   const canSubmit =
-    props.parts.length > 0 &&
     lines.length > 0 &&
-    lines.every((l) => l.partId && l.quantity > 0);
+    lines.every((l) => {
+      if (l.kind === "master") {
+        return props.parts.length > 0 && !!l.partId && l.quantity > 0;
+      }
+      return l.itemName.trim().length > 0 && l.quantity > 0;
+    });
+
+  function toPayloadLines(): OutgoingFormValues["lines"] {
+    return lines.map((l) => {
+      if (l.kind === "master") {
+        return { kind: "master" as const, partId: l.partId, quantity: l.quantity };
+      }
+      return {
+        kind: "adHoc" as const,
+        quantity: l.quantity,
+        itemName: l.itemName.trim(),
+        partNo: l.partNo.trim() || undefined,
+        machineModel: l.machineModel.trim() || undefined,
+        machineUnitNo: l.machineUnitNo.trim() || undefined,
+        machineEngineNo: l.machineEngineNo.trim() || undefined,
+      };
+    });
+  }
 
   return (
     <form
@@ -50,11 +81,7 @@ export function OutgoingIssueForm(props: Props) {
         e.preventDefault();
         if (!canSubmit) return;
         const fd = new FormData(e.currentTarget);
-
-        fd.set(
-          "lines",
-          JSON.stringify(lines.map((l) => ({ partId: l.partId, quantity: l.quantity }))),
-        );
+        fd.set("lines", JSON.stringify(toPayloadLines()));
 
         startTransition(async () => {
           setMessage(null);
@@ -104,55 +131,137 @@ export function OutgoingIssueForm(props: Props) {
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">使用部品一覧</h2>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              setLines((prev) =>
-                prev.concat([
-                  {
-                    id: Date.now(),
-                    partId: props.parts[0]?.id ?? "",
-                    quantity: 1,
-                  },
-                ]),
-              )
-            }
-          >
-            行を追加
-          </Button>
+          <h2 className="text-sm font-semibold">出庫明細</h2>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                setLines((prev) =>
+                  prev.concat([
+                    {
+                      id: Date.now(),
+                      kind: "master",
+                      partId: props.parts[0]?.id ?? "",
+                      quantity: 1,
+                    },
+                  ]),
+                )
+              }
+            >
+              行追加（マスタ）
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setLines((prev) =>
+                  prev.concat([
+                    {
+                      id: Date.now(),
+                      kind: "adHoc",
+                      quantity: 1,
+                      itemName: "",
+                      partNo: "",
+                      machineModel: "",
+                      machineUnitNo: "",
+                      machineEngineNo: "",
+                    },
+                  ]),
+                )
+              }
+            >
+              行追加（品番不明・臨時）
+            </Button>
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          伝票未到着で在庫のみ減らす場合は「臨時」行で品名を入れてください。在庫は不足分でも記録されます（マイナス在庫になり得ます）。
+        </p>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>部品</TableHead>
-              <TableHead>数量</TableHead>
+              <TableHead>種別</TableHead>
+              <TableHead>内容</TableHead>
+              <TableHead className="w-28">数量</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.map((line) => (
               <TableRow key={line.id}>
-                <TableCell>
-                  <select
-                    className="h-10 w-full max-w-xl rounded-md border border-input px-3 text-[13px]"
-                    value={line.partId}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l) => (l.id === line.id ? { ...l, partId: e.target.value } : l)),
-                      )
-                    }
-                  >
-                    {props.parts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}（在庫 {p.currentQty}）
-                      </option>
-                    ))}
-                  </select>
+                <TableCell className="align-top text-xs">
+                  {line.kind === "master" ? "マスタ" : "臨時"}
                 </TableCell>
-                <TableCell className="w-36">
+                <TableCell className="align-top">
+                  {line.kind === "master" ? (
+                    <select
+                      className="h-10 w-full max-w-xl rounded-md border border-input px-3 text-[13px]"
+                      value={line.partId}
+                      onChange={(e) =>
+                        setLines((prev) =>
+                          prev.map((l) => (l.id === line.id ? { ...l, partId: e.target.value } : l)),
+                        )
+                      }
+                    >
+                      {props.parts.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}（在庫 {p.currentQty}）
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input
+                        placeholder="品名 *"
+                        value={line.itemName}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((l) =>
+                              l.id === line.id && l.kind === "adHoc" ? { ...l, itemName: e.target.value } : l,
+                            ),
+                          )
+                        }
+                      />
+                      <Input
+                        placeholder="品番（任意）"
+                        value={line.partNo}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((l) =>
+                              l.id === line.id && l.kind === "adHoc" ? { ...l, partNo: e.target.value } : l,
+                            ),
+                          )
+                        }
+                      />
+                      <Input
+                        placeholder="型式"
+                        value={line.machineModel}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((l) =>
+                              l.id === line.id && l.kind === "adHoc" ? { ...l, machineModel: e.target.value } : l,
+                            ),
+                          )
+                        }
+                      />
+                      <Input
+                        placeholder="号機"
+                        value={line.machineUnitNo}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((l) =>
+                              l.id === line.id && l.kind === "adHoc" ? { ...l, machineUnitNo: e.target.value } : l,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="align-top">
                   <Input
                     type="number"
                     min={1}
@@ -166,7 +275,7 @@ export function OutgoingIssueForm(props: Props) {
                     }
                   />
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="align-top text-right">
                   <Button
                     variant="outline"
                     type="button"
@@ -185,7 +294,10 @@ export function OutgoingIssueForm(props: Props) {
 
       {props.parts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          部品マスタが空です。<Link href="/dashboard/parts/new" className="underline">部品登録へ</Link>
+          部品マスタが空です。「臨時」行のみで出庫するか、
+          <Link href="/dashboard/parts/new" className="underline">
+            部品登録へ
+          </Link>
         </p>
       ) : null}
 

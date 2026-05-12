@@ -7,7 +7,7 @@ import { OrderHeaderCreateForm } from "@/components/orders/order-header-create-f
 export default function OrdersNewPage() {
   return (
     <div className="flex min-h-screen flex-1 flex-col">
-      <DashboardHeader title="注文ヘッダ登録" description="まず注文伝票だけを作成し、次のページで発注明細・入荷を登録できます。" />
+      <DashboardHeader title="注文ヘッダ登録" description="書類種別・担当連絡先を入力後、次ページでマスタ／自由記述の明細・添付・印刷・共有が可能です。" />
       <MotionFade className="flex flex-1 flex-col gap-6 px-8 py-6">
         <OrderHeaderCreateForm />
         <Link className="text-sm text-muted-foreground underline" href="/dashboard/orders">

@@ -9,13 +9,23 @@ import { prisma } from "@/lib/db";
 import { ActionError } from "@/lib/server/action-guard";
 
 /**
- * Usage (出庫) is the path that decreases stock (outgoing): for each line we insert
- * a `USAGE_OUT` ledger row (negative `quantity`) and apply the matching negative delta
- * to `Part.currentQty` in one transaction (after all lines are created, so the tx
- * rolls back entirely if any quantity check fails).
+ * Usage (出庫) decreases stock: `USAGE_OUT` ledger + `Part.currentQty`.
+ * Lines with `kind: "adHoc"` create a minimal master row (`isAdHoc`) and may drive `currentQty` negative.
  */
 
-export type OutgoingLineInput = { partId: string; quantity: number };
+export type OutgoingLineInput =
+  | { kind: "master"; partId: string; quantity: number }
+  | {
+      kind: "adHoc";
+      quantity: number;
+      itemName: string;
+      partNo?: string;
+      machineModel?: string;
+      machineUnitNo?: string;
+      machineEngineNo?: string;
+    };
+
+type ResolvedLine = { partId: string; quantity: number; allowNegative: boolean };
 
 export type CreateUsageSlipPayload = {
   issueDate?: Date | null;
@@ -25,21 +35,55 @@ export type CreateUsageSlipPayload = {
   lines: OutgoingLineInput[];
 };
 
-async function aggregateNeedByPart(lines: OutgoingLineInput[]): Promise<Map<string, number>> {
-  const totals = new Map<string, number>();
+async function resolveLines(tx: DbClient, lines: OutgoingLineInput[]): Promise<ResolvedLine[]> {
+  const resolved: ResolvedLine[] = [];
   for (const line of lines) {
-    totals.set(line.partId, (totals.get(line.partId) ?? 0) + line.quantity);
+    if (line.kind === "master") {
+      const part = await tx.part.findUnique({ where: { id: line.partId } });
+      if (!part) throw new ActionError("部品が存在しません");
+      resolved.push({ partId: line.partId, quantity: line.quantity, allowNegative: false });
+      continue;
+    }
+
+    const name = line.itemName.trim();
+    if (!name) throw new ActionError("品名を入力してください");
+
+    const compat = [line.machineModel, line.machineUnitNo, line.machineEngineNo]
+      .filter((s) => s && s.trim())
+      .join(" / ");
+
+    const part = await tx.part.create({
+      data: {
+        name: name,
+        oemPartNo: line.partNo?.trim() || undefined,
+        compatibleModels: compat.length ? compat : undefined,
+        currentQty: 0,
+        isAdHoc: true,
+      },
+    });
+
+    resolved.push({ partId: part.id, quantity: line.quantity, allowNegative: true });
+  }
+  return resolved;
+}
+
+function aggregateByPart(resolved: ResolvedLine[]): Map<string, { total: number; allowNegative: boolean }> {
+  const totals = new Map<string, { total: number; allowNegative: boolean }>();
+  for (const line of resolved) {
+    const cur = totals.get(line.partId);
+    if (!cur) {
+      totals.set(line.partId, { total: line.quantity, allowNegative: line.allowNegative });
+    } else {
+      cur.total += line.quantity;
+      cur.allowNegative = cur.allowNegative && line.allowNegative;
+    }
   }
   return totals;
 }
 
 export async function createUsageSlipTx(tx: DbClient, payload: CreateUsageSlipPayload): Promise<{ id: string }> {
-  const need = await aggregateNeedByPart(payload.lines);
-
-  for (const partId of need.keys()) {
-    const part = await tx.part.findUnique({ where: { id: partId } });
-    if (!part) throw new ActionError("部品が存在しません");
-  }
+  const resolved = await resolveLines(tx, payload.lines);
+  const need = aggregateByPart(resolved);
 
   const slip = await tx.usageHistory.create({
     data: {
@@ -50,9 +94,7 @@ export async function createUsageSlipTx(tx: DbClient, payload: CreateUsageSlipPa
     },
   });
 
-  // Record every outbound line in the ledger first; then apply stock decrements.
-  // If any decrement fails (e.g. negative stock), the whole transaction aborts — no partial slip.
-  for (const line of payload.lines) {
+  for (const line of resolved) {
     const created = await tx.usageHistoryLine.create({
       data: {
         usageHistoryId: slip.id,
@@ -71,8 +113,8 @@ export async function createUsageSlipTx(tx: DbClient, payload: CreateUsageSlipPa
     });
   }
 
-  for (const [partId, total] of need.entries()) {
-    await applyStockDelta(tx, partId, -total);
+  for (const [partId, agg] of need.entries()) {
+    await applyStockDelta(tx, partId, -agg.total, { allowNegative: agg.allowNegative });
   }
 
   return { id: slip.id };
@@ -82,7 +124,6 @@ export async function createUsageSlip(payload: CreateUsageSlipPayload): Promise<
   return prisma.$transaction((tx) => createUsageSlipTx(tx, payload));
 }
 
-/** Server-composed props for the outgoing issue form (one import site for the page). */
 export async function getOutgoingIssueFormData() {
   const [customers, machines, parts] = await Promise.all([
     listCustomersAlphabetical(),

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { OrderDocumentType, Prisma } from "@prisma/client";
 
 import type { DbClient } from "@/server/db/types";
 import { applyStockDelta } from "@/server/inventory/stock-delta";
@@ -16,11 +16,19 @@ import { orderLineStatusFromQuantities, orderProgressStatus } from "@/lib/domain
 export async function createOrderHeader(input: {
   supplierName?: string;
   memo?: string;
+  documentType?: OrderDocumentType;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }): Promise<{ id: string }> {
   const order = await prisma.order.create({
     data: {
       supplierName: input.supplierName?.trim() || undefined,
       memo: input.memo?.trim() || undefined,
+      documentType: input.documentType ?? "PURCHASE_ORDER",
+      contactName: input.contactName?.trim() || undefined,
+      contactPhone: input.contactPhone?.trim() || undefined,
+      contactEmail: input.contactEmail?.trim() || undefined,
     },
   });
   return { id: order.id };
@@ -28,9 +36,15 @@ export async function createOrderHeader(input: {
 
 export async function appendOrderLine(input: {
   orderId: string;
-  partId: string;
+  lineMode: "MASTER" | "FREE_TEXT";
+  partId?: string;
   orderedQty: number;
   unitCost?: Prisma.Decimal | null;
+  freeItemName?: string;
+  freePartNo?: string;
+  machineModel?: string;
+  machineUnitNo?: string;
+  machineEngineNo?: string;
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const parent = await tx.order.findUnique({ where: { id: input.orderId } });
@@ -39,14 +53,36 @@ export async function appendOrderLine(input: {
       throw new ActionError("注文が見つからないか取り消されています");
     }
 
-    await tx.orderLine.create({
-      data: {
-        orderId: input.orderId,
-        partId: input.partId,
-        orderedQty: input.orderedQty,
-        unitCost: input.unitCost ?? undefined,
-      },
-    });
+    if (input.lineMode === "MASTER") {
+      const pid = input.partId?.trim();
+      if (!pid) throw new ActionError("部品を選択してください");
+      await tx.orderLine.create({
+        data: {
+          orderId: input.orderId,
+          partId: pid,
+          lineSource: "MASTER",
+          orderedQty: input.orderedQty,
+          unitCost: input.unitCost ?? undefined,
+        },
+      });
+    } else {
+      const name = input.freeItemName?.trim();
+      if (!name) throw new ActionError("品名を入力してください");
+      await tx.orderLine.create({
+        data: {
+          orderId: input.orderId,
+          partId: null,
+          lineSource: "FREE_TEXT",
+          freeItemName: name,
+          freePartNo: input.freePartNo?.trim() || undefined,
+          machineModel: input.machineModel?.trim() || undefined,
+          machineUnitNo: input.machineUnitNo?.trim() || undefined,
+          machineEngineNo: input.machineEngineNo?.trim() || undefined,
+          orderedQty: input.orderedQty,
+          unitCost: input.unitCost ?? undefined,
+        },
+      });
+    }
 
     const lines = await tx.orderLine.findMany({ where: { orderId: input.orderId } });
     await tx.order.update({
@@ -56,7 +92,10 @@ export async function appendOrderLine(input: {
   });
 }
 
-export async function receiveOrderLineTx(tx: DbClient, input: { orderLineId: string; quantity: number }): Promise<{ orderId: string }> {
+export async function receiveOrderLineTx(
+  tx: DbClient,
+  input: { orderLineId: string; quantity: number },
+): Promise<{ orderId: string }> {
   const line = await tx.orderLine.findUnique({
     where: { id: input.orderLineId },
     include: { order: true },
@@ -66,12 +105,15 @@ export async function receiveOrderLineTx(tx: DbClient, input: { orderLineId: str
     throw new ActionError("明細が見つかりません");
   }
 
+  if (!line.partId) {
+    throw new ActionError("マスタ未登録の行は入荷できません（注文書／見積用の行です）");
+  }
+
   const remaining = line.orderedQty - line.receivedQty;
   if (input.quantity > remaining) {
     throw new ActionError("入荷数量が発注残を超えています");
   }
 
-  // Immutable ledger row + cached qty update — same transaction (all-or-nothing).
   await tx.inventoryLog.create({
     data: {
       partId: line.partId,
@@ -126,6 +168,12 @@ export async function updateOrderHeader(input: {
   orderId: string;
   supplierName?: string;
   memo?: string;
+  documentType?: OrderDocumentType;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  quoteReplyAmount?: Prisma.Decimal | null;
+  quoteReplyLeadTime?: string | null;
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const ord = await tx.order.findUnique({ where: { id: input.orderId } });
@@ -137,6 +185,12 @@ export async function updateOrderHeader(input: {
       data: {
         supplierName: input.supplierName?.trim() || undefined,
         memo: input.memo?.trim() || undefined,
+        documentType: input.documentType ?? undefined,
+        contactName: input.contactName?.trim() || undefined,
+        contactPhone: input.contactPhone?.trim() || undefined,
+        contactEmail: input.contactEmail?.trim() || undefined,
+        quoteReplyAmount: input.quoteReplyAmount,
+        quoteReplyLeadTime: input.quoteReplyLeadTime?.trim() || null,
       },
     });
   });
@@ -172,7 +226,12 @@ export async function listOrdersForDashboard(take = 200) {
   return prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     take,
-    include: {
+    select: {
+      id: true,
+      orderDate: true,
+      status: true,
+      supplierName: true,
+      documentType: true,
       _count: { select: { lines: true } },
     },
   });
@@ -182,6 +241,7 @@ export async function getOrderWithLines(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },
     include: {
+      attachments: { orderBy: { createdAt: "asc" } },
       lines: { include: { part: true }, orderBy: { createdAt: "asc" } },
     },
   });
@@ -221,4 +281,37 @@ export async function updateOrderLine(input: {
 
     return { orderId: line.orderId };
   });
+}
+
+export async function createOrderAttachmentRecord(input: {
+  orderId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageKind: "LOCAL" | "BLOB";
+  fileUrl: string;
+  storageRef: string;
+}) {
+  const row = await prisma.orderAttachment.create({
+    data: {
+      orderId: input.orderId,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      fileSize: input.fileSize,
+      storageKind: input.storageKind,
+      fileUrl: input.storageKind === "BLOB" ? input.fileUrl : "https://local.invalid/pending",
+      storageRef: input.storageRef,
+    },
+  });
+  if (input.storageKind === "LOCAL") {
+    return prisma.orderAttachment.update({
+      where: { id: row.id },
+      data: { fileUrl: `/api/order-attachments/${row.id}/file` },
+    });
+  }
+  return row;
+}
+
+export async function getOrderAttachmentById(id: string) {
+  return prisma.orderAttachment.findUnique({ where: { id } });
 }
