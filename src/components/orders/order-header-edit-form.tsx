@@ -9,9 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+import type { SupplierPickerRow } from "./order-header-create-form";
+
 type Props = {
   orderId: string;
+  supplierId: string | null;
   supplierName: string | null;
+  supplierFax: string | null;
+  supplierHonorific: string | null;
   memo: string | null;
   documentType: OrderDocumentType;
   contactName: string | null;
@@ -19,12 +24,16 @@ type Props = {
   contactEmail: string | null;
   quoteReplyAmount: string;
   quoteReplyLeadTime: string | null;
+  suppliers: SupplierPickerRow[];
   disabled?: boolean;
 };
 
 export function OrderHeaderEditForm({
   orderId,
-  supplierName,
+  supplierId: initialSupplierId,
+  supplierName: initialSupplierName,
+  supplierFax: initialSupplierFax,
+  supplierHonorific: initialHonorific,
   memo,
   documentType,
   contactName,
@@ -32,10 +41,19 @@ export function OrderHeaderEditForm({
   contactEmail,
   quoteReplyAmount,
   quoteReplyLeadTime,
+  suppliers,
   disabled,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+
+  const [supplierId, setSupplierId] = useState(initialSupplierId ?? "");
+  const [supplierName, setSupplierName] = useState(initialSupplierName ?? "");
+  const [supplierFax, setSupplierFax] = useState(initialSupplierFax ?? "");
+  const [supplierHonorific, setSupplierHonorific] = useState(initialHonorific ?? "");
+  const [hdrContactName, setHdrContactName] = useState(contactName ?? "");
+  const [hdrContactPhone, setHdrContactPhone] = useState(contactPhone ?? "");
+  const [hdrContactEmail, setHdrContactEmail] = useState(contactEmail ?? "");
 
   if (disabled) return null;
 
@@ -66,30 +84,104 @@ export function OrderHeaderEditForm({
           className="h-10 w-full rounded-md border border-input px-2 text-sm"
           defaultValue={documentType}
         >
-          <option value="PURCHASE_ORDER">発注書</option>
+          <option value="PURCHASE_ORDER">注文書</option>
           <option value="QUOTE_REQUEST">見積依頼</option>
         </select>
       </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="hdr-supplier-pick">仕入先マスタ（任意）</Label>
+        <select
+          id="hdr-supplier-pick"
+          name="supplierId"
+          className="h-10 w-full rounded-md border border-input px-2 text-sm"
+          value={supplierId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSupplierId(id);
+            const row = suppliers.find((s) => s.id === id);
+            if (!row) return;
+            setSupplierName(row.companyName);
+            setSupplierFax(row.fax ?? "");
+            setHdrContactName(row.attn ?? "");
+            setHdrContactPhone(row.phone ?? "");
+            setHdrContactEmail(row.email ?? "");
+          }}
+        >
+          <option value="">マスタ未使用（手入力）</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.companyName}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="space-y-1">
         <Label htmlFor="hdr-supplier">発注先</Label>
         <Input
           id="hdr-supplier"
           name="supplierName"
-          defaultValue={supplierName ?? ""}
+          value={supplierName}
+          onChange={(e) => setSupplierName(e.target.value)}
           placeholder="発注先名"
         />
       </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="hdr-honorific">発注先の敬称（印刷）</Label>
+        <select
+          id="hdr-honorific"
+          name="supplierHonorific"
+          className="h-10 w-full rounded-md border border-input px-2 text-sm"
+          value={supplierHonorific}
+          onChange={(e) => setSupplierHonorific(e.target.value)}
+        >
+          <option value="御中">御中</option>
+          <option value="様">様</option>
+          <option value="">（付けない）</option>
+        </select>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="hdr-fax">FAX</Label>
+        <Input
+          id="hdr-fax"
+          name="supplierFax"
+          type="tel"
+          value={supplierFax}
+          onChange={(e) => setSupplierFax(e.target.value)}
+        />
+      </div>
+
       <div className="space-y-1">
         <Label htmlFor="hdr-contact-name">注文担当者名</Label>
-        <Input id="hdr-contact-name" name="contactName" defaultValue={contactName ?? ""} />
+        <Input
+          id="hdr-contact-name"
+          name="contactName"
+          value={hdrContactName}
+          onChange={(e) => setHdrContactName(e.target.value)}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor="hdr-phone">連絡先（携帯）</Label>
-        <Input id="hdr-phone" name="contactPhone" type="tel" defaultValue={contactPhone ?? ""} />
+        <Input
+          id="hdr-phone"
+          name="contactPhone"
+          type="tel"
+          value={hdrContactPhone}
+          onChange={(e) => setHdrContactPhone(e.target.value)}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor="hdr-email">連絡先（メール）</Label>
-        <Input id="hdr-email" name="contactEmail" type="email" defaultValue={contactEmail ?? ""} />
+        <Input
+          id="hdr-email"
+          name="contactEmail"
+          type="email"
+          value={hdrContactEmail}
+          onChange={(e) => setHdrContactEmail(e.target.value)}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor="hdr-memo">備考</Label>
@@ -112,7 +204,12 @@ export function OrderHeaderEditForm({
           <Label htmlFor="hdr-quote-lead" className="text-xs font-normal text-muted-foreground">
             納期回答
           </Label>
-          <Input id="hdr-quote-lead" name="quoteReplyLeadTime" defaultValue={quoteReplyLeadTime ?? ""} placeholder="例：受注後2週間" />
+          <Input
+            id="hdr-quote-lead"
+            name="quoteReplyLeadTime"
+            defaultValue={quoteReplyLeadTime ?? ""}
+            placeholder="例：受注後2週間"
+          />
         </div>
       </div>
       {message ? <p className="text-xs text-destructive">{message}</p> : null}

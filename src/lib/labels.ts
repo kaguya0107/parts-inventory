@@ -8,7 +8,7 @@ export const orderStatusLabel: Record<OrderStatus, string> = {
 };
 
 export const orderDocumentTypeLabel: Record<OrderDocumentType, string> = {
-  PURCHASE_ORDER: "発注書",
+  PURCHASE_ORDER: "注文書",
   QUOTE_REQUEST: "見積依頼",
 };
 

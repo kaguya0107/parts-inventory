@@ -1,6 +1,7 @@
 import type { Session } from "next-auth";
 
 import { z } from "zod";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 import { auth } from "@/auth";
 
@@ -56,6 +57,7 @@ export async function guardAction<T>(
     const data = await fn();
     return { ok: true, data };
   } catch (e) {
+    if (isRedirectError(e)) throw e;
     if (e instanceof ActionError) return { ok: false, message: e.message };
     console.error(e);
     return { ok: false, message: "サーバーで処理に失敗しました。時間をおいて再度お試しください。" };

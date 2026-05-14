@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 export const orderHeaderSchema = z.object({
+  supplierId: z.string().optional(),
   supplierName: z.string().optional(),
+  supplierFax: z.string().optional(),
+  supplierHonorific: z.string().optional(),
   memo: z.string().optional(),
   documentType: z.enum(["PURCHASE_ORDER", "QUOTE_REQUEST"]).optional(),
   contactName: z.string().optional(),
@@ -21,6 +24,7 @@ export const orderLineAppendSchema = z
     machineModel: z.string().optional(),
     machineUnitNo: z.string().optional(),
     machineEngineNo: z.string().optional(),
+    lineNote: z.string().optional(),
   })
   .superRefine((val, ctx) => {
     if (val.lineMode === "MASTER" && (!val.partId || val.partId.trim() === "")) {
@@ -41,7 +45,10 @@ export const receiveLineSchema = z.object({
 
 export const orderHeaderUpdateSchema = z.object({
   orderId: z.string().min(1),
+  supplierId: z.string().optional(),
   supplierName: z.string().optional(),
+  supplierFax: z.string().optional(),
+  supplierHonorific: z.string().optional(),
   memo: z.string().optional(),
   documentType: z.enum(["PURCHASE_ORDER", "QUOTE_REQUEST"]).optional(),
   contactName: z.string().optional(),
@@ -55,6 +62,7 @@ export const orderLineUpdateSchema = z.object({
   orderLineId: z.string().min(1),
   orderedQty: z.coerce.number().int().positive(),
   unitCost: z.string().optional(),
+  lineNote: z.string().optional(),
 });
 
 export const orderLineIdSchema = z.object({

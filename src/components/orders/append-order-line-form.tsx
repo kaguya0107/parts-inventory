@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { appendOrderLine } from "@/features/orders/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type PartSel = { id: string; name: string; currentQty: number };
 
@@ -21,19 +22,42 @@ export function AppendOrderLineForm({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [mode, setMode] = useState<"MASTER" | "FREE_TEXT">("MASTER");
+  const [partId, setPartId] = useState(() => parts[0]?.id ?? "");
+
+  useEffect(() => {
+    if (mode !== "MASTER") return;
+    if (parts.length === 0) {
+      setPartId("");
+      return;
+    }
+    if (!partId || !parts.some((p) => p.id === partId)) {
+      setPartId(parts[0]!.id);
+    }
+  }, [mode, parts, partId]);
 
   return (
     <div className="grid gap-4 md:max-w-2xl">
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant={mode === "MASTER" ? "default" : "outline"} onClick={() => setMode("MASTER")}>
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "MASTER" ? "default" : "outline"}
+          onClick={() => setMode("MASTER")}
+        >
           マスタから選択
         </Button>
-        <Button type="button" size="sm" variant={mode === "FREE_TEXT" ? "default" : "outline"} onClick={() => setMode("FREE_TEXT")}>
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "FREE_TEXT" ? "default" : "outline"}
+          onClick={() => setMode("FREE_TEXT")}
+        >
           直接入力（品名・品番・機体情報）
         </Button>
       </div>
 
       <form
+        key={mode}
         className="grid gap-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -48,10 +72,6 @@ export function AppendOrderLineForm({
               return;
             }
             e.currentTarget.reset();
-            if (mode === "MASTER" && parts[0]) {
-              const sel = e.currentTarget.querySelector<HTMLSelectElement>("#part-select");
-              if (sel) sel.value = parts[0].id;
-            }
             router.refresh();
           });
         }}
@@ -62,7 +82,9 @@ export function AppendOrderLineForm({
         {mode === "MASTER" ? (
           <>
             {parts.length === 0 ? (
-              <p className="text-xs text-destructive">部品マスタが空です。直接入力に切り替えるか、先に部品登録してください。</p>
+              <p className="text-xs text-destructive">
+                部品マスタが空です。直接入力に切り替えるか、先に部品登録してください。
+              </p>
             ) : (
               <div className="grid gap-1">
                 <label className="text-xs text-muted-foreground" htmlFor="part-select">
@@ -73,7 +95,8 @@ export function AppendOrderLineForm({
                   name="partId"
                   required={mode === "MASTER"}
                   className="h-10 rounded-md border border-input px-2 text-[13px]"
-                  defaultValue={parts[0]?.id ?? ""}
+                  value={partId}
+                  onChange={(e) => setPartId(e.target.value)}
                 >
                   {parts.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -108,6 +131,13 @@ export function AppendOrderLineForm({
             </div>
           </div>
         )}
+
+        <div className="grid gap-1">
+          <Label htmlFor="lineNoteAppend" className="text-xs text-muted-foreground font-normal">
+            行ごとの備考（任意）
+          </Label>
+          <Textarea id="lineNoteAppend" name="lineNote" rows={2} placeholder="行の注記など" />
+        </div>
 
         <div className="grid gap-3 md:grid-cols-[150px_auto] md:items-end">
           <div className="grid gap-1">

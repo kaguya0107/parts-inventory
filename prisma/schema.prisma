@@ -62,6 +62,23 @@ model Machine {
   @@map("machines")
 }
 
+/// 発注先マスタ（注文ヘッダで選択して転記）
+model Supplier {
+  id          String   @id @default(cuid())
+  companyName String
+  attn        String?
+  fax         String?
+  phone       String?
+  email       String?
+  memo        String?
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyName])
+  @@map("suppliers")
+}
+
 /// Set when the row was created for free-text outbound (no prior master); may carry negative `currentQty`.
 model Part {
   id               String             @id @default(cuid())
@@ -123,7 +140,12 @@ enum FileStorageKind {
 
 model Order {
   id           String      @id @default(cuid())
+  supplierId   String?
+  supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierName String?
+  supplierFax  String?
+  /// 印刷用敬称（御中／様など）。空なら付けない。
+  supplierHonorific String?
   memo         String?
   status       OrderStatus @default(OPEN)
   orderDate    DateTime    @default(now())
@@ -146,6 +168,7 @@ model Order {
   @@index([status])
   @@index([supplierName])
   @@index([documentType])
+  @@index([supplierId])
   @@map("orders")
 }
 
@@ -162,6 +185,7 @@ model OrderLine {
   machineModel     String?
   machineUnitNo    String?
   machineEngineNo  String?
+  lineNote         String?
   orderedQty   Int
   receivedQty  Int           @default(0)
   unitCost     Decimal?      @db.Decimal(12, 2)

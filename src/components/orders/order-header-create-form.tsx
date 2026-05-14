@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createOrderHeader } from "@/features/orders/actions";
@@ -9,10 +10,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-export function OrderHeaderCreateForm({ initialError }: { initialError?: string | null }) {
+export type SupplierPickerRow = {
+  id: string;
+  companyName: string;
+  attn: string | null;
+  fax: string | null;
+  phone: string | null;
+  email: string | null;
+};
+
+export function OrderHeaderCreateForm({
+  initialError,
+  suppliers,
+}: {
+  initialError?: string | null;
+  suppliers: SupplierPickerRow[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(initialError ?? null);
+
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierFax, setSupplierFax] = useState("");
+  const [supplierHonorific, setSupplierHonorific] = useState("御中");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
 
   return (
     <form
@@ -34,6 +58,8 @@ export function OrderHeaderCreateForm({ initialError }: { initialError?: string 
         });
       }}
     >
+      <input type="hidden" name="supplierId" value={supplierId} />
+
       <div className="space-y-2">
         <Label htmlFor="documentType">書類種別</Label>
         <select
@@ -42,25 +68,116 @@ export function OrderHeaderCreateForm({ initialError }: { initialError?: string 
           className="h-10 w-full rounded-md border border-input px-3 text-sm"
           defaultValue="PURCHASE_ORDER"
         >
-          <option value="PURCHASE_ORDER">発注書</option>
+          <option value="PURCHASE_ORDER">注文書</option>
           <option value="QUOTE_REQUEST">見積依頼</option>
         </select>
       </div>
+
       <div className="space-y-2">
-        <Label htmlFor="supplierName">発注先</Label>
-        <Input id="supplierName" name="supplierName" placeholder="会社名など" />
+        <Label htmlFor="supplierPick">仕入先マスタ（任意）</Label>
+        <select
+          id="supplierPick"
+          className="h-10 w-full rounded-md border border-input px-3 text-sm"
+          value={supplierId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSupplierId(id);
+            const row = suppliers.find((s) => s.id === id);
+            if (!row) {
+              return;
+            }
+            setSupplierName(row.companyName);
+            setSupplierFax(row.fax ?? "");
+            setContactName(row.attn ?? "");
+            setContactPhone(row.phone ?? "");
+            setContactEmail(row.email ?? "");
+          }}
+        >
+          <option value="">選択しない（下で手入力）</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.companyName}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          マスタは
+          <Link href="/dashboard/suppliers" className="underline">
+            仕入先マスタ
+          </Link>
+          で登録できます。
+        </p>
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="supplierName">発注先（社名など）</Label>
+        <Input
+          id="supplierName"
+          name="supplierName"
+          value={supplierName}
+          onChange={(e) => setSupplierName(e.target.value)}
+          placeholder="会社名"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="supplierHonorific">発注先の敬称（印刷に表示）</Label>
+        <select
+          id="supplierHonorific"
+          name="supplierHonorific"
+          className="h-10 w-full rounded-md border border-input px-3 text-sm"
+          value={supplierHonorific}
+          onChange={(e) => setSupplierHonorific(e.target.value)}
+        >
+          <option value="御中">御中</option>
+          <option value="様">様</option>
+          <option value="">（付けない）</option>
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="supplierFax">FAX</Label>
+        <Input
+          id="supplierFax"
+          name="supplierFax"
+          type="tel"
+          value={supplierFax}
+          onChange={(e) => setSupplierFax(e.target.value)}
+          placeholder="任意"
+        />
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="contactName">注文担当者名</Label>
-        <Input id="contactName" name="contactName" placeholder="氏名" />
+        <Input
+          id="contactName"
+          name="contactName"
+          value={contactName}
+          onChange={(e) => setContactName(e.target.value)}
+          placeholder="氏名"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="contactPhone">連絡先（携帯）</Label>
-        <Input id="contactPhone" name="contactPhone" type="tel" placeholder="090-xxxx-xxxx" />
+        <Input
+          id="contactPhone"
+          name="contactPhone"
+          type="tel"
+          value={contactPhone}
+          onChange={(e) => setContactPhone(e.target.value)}
+          placeholder="090-xxxx-xxxx"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="contactEmail">連絡先（メール）</Label>
-        <Input id="contactEmail" name="contactEmail" type="email" placeholder="name@example.com" />
+        <Input
+          id="contactEmail"
+          name="contactEmail"
+          type="email"
+          value={contactEmail}
+          onChange={(e) => setContactEmail(e.target.value)}
+          placeholder="name@example.com"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="memo">備考メモ</Label>

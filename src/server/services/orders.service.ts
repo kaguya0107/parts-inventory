@@ -14,16 +14,32 @@ import { orderLineStatusFromQuantities, orderProgressStatus } from "@/lib/domain
  */
 
 export async function createOrderHeader(input: {
+  supplierId?: string | null;
   supplierName?: string;
+  supplierFax?: string | null;
+  supplierHonorific?: string | null;
   memo?: string;
   documentType?: OrderDocumentType;
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
 }): Promise<{ id: string }> {
+  const rawSid = input.supplierId;
+  const sid = rawSid == null || String(rawSid).trim() === "" ? null : String(rawSid).trim();
+  if (sid) {
+    const s = await prisma.supplier.findUnique({ where: { id: sid } });
+    if (!s) throw new ActionError("仕入先マスタが見つかりません");
+  }
+
   const order = await prisma.order.create({
     data: {
+      supplierId: sid,
       supplierName: input.supplierName?.trim() || undefined,
+      supplierFax: input.supplierFax?.trim() || null,
+      supplierHonorific:
+        input.supplierHonorific == null || input.supplierHonorific.trim() === ""
+          ? null
+          : input.supplierHonorific.trim(),
       memo: input.memo?.trim() || undefined,
       documentType: input.documentType ?? "PURCHASE_ORDER",
       contactName: input.contactName?.trim() || undefined,
@@ -45,6 +61,7 @@ export async function appendOrderLine(input: {
   machineModel?: string;
   machineUnitNo?: string;
   machineEngineNo?: string;
+  lineNote?: string | null;
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const parent = await tx.order.findUnique({ where: { id: input.orderId } });
@@ -63,6 +80,7 @@ export async function appendOrderLine(input: {
           lineSource: "MASTER",
           orderedQty: input.orderedQty,
           unitCost: input.unitCost ?? undefined,
+          lineNote: input.lineNote?.trim() || null,
         },
       });
     } else {
@@ -80,6 +98,7 @@ export async function appendOrderLine(input: {
           machineEngineNo: input.machineEngineNo?.trim() || undefined,
           orderedQty: input.orderedQty,
           unitCost: input.unitCost ?? undefined,
+          lineNote: input.lineNote?.trim() || null,
         },
       });
     }
@@ -166,7 +185,10 @@ export async function cancelOrder(orderId: string): Promise<void> {
 
 export async function updateOrderHeader(input: {
   orderId: string;
+  supplierId?: string | null;
   supplierName?: string;
+  supplierFax?: string | null;
+  supplierHonorific?: string | null;
   memo?: string;
   documentType?: OrderDocumentType;
   contactName?: string;
@@ -180,10 +202,31 @@ export async function updateOrderHeader(input: {
     if (!ord) throw new ActionError("注文が見つかりません");
     if (ord.status === "CANCELLED") throw new ActionError("取消済みの注文は変更できません");
 
+    let supplierId: string | null | undefined = undefined;
+    if (input.supplierId !== undefined) {
+      const sid = input.supplierId?.trim() || null;
+      if (sid) {
+        const s = await tx.supplier.findUnique({ where: { id: sid } });
+        if (!s) throw new ActionError("仕入先マスタが見つかりません");
+      }
+      supplierId = sid;
+    }
+
     await tx.order.update({
       where: { id: input.orderId },
       data: {
+        ...(supplierId !== undefined ? { supplierId } : {}),
         supplierName: input.supplierName?.trim() || undefined,
+        supplierFax:
+          input.supplierFax === undefined
+            ? undefined
+            : input.supplierFax?.trim() || null,
+        supplierHonorific:
+          input.supplierHonorific === undefined
+            ? undefined
+            : input.supplierHonorific == null || input.supplierHonorific.trim() === ""
+              ? null
+              : input.supplierHonorific.trim(),
         memo: input.memo?.trim() || undefined,
         documentType: input.documentType ?? undefined,
         contactName: input.contactName?.trim() || undefined,
@@ -241,6 +284,7 @@ export async function getOrderWithLines(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },
     include: {
+      supplier: true,
       attachments: { orderBy: { createdAt: "asc" } },
       lines: { include: { part: true }, orderBy: { createdAt: "asc" } },
     },
@@ -251,6 +295,7 @@ export async function updateOrderLine(input: {
   orderLineId: string;
   orderedQty: number;
   unitCost?: Prisma.Decimal | null;
+  lineNote?: string | null;
 }): Promise<{ orderId: string }> {
   return prisma.$transaction(async (tx) => {
     const line = await tx.orderLine.findUnique({
@@ -270,6 +315,9 @@ export async function updateOrderLine(input: {
         orderedQty: input.orderedQty,
         lineStatus: orderLineStatusFromQuantities(input.orderedQty, line.receivedQty),
         ...(input.unitCost === undefined ? {} : { unitCost: input.unitCost }),
+        ...(input.lineNote === undefined
+          ? {}
+          : { lineNote: input.lineNote?.trim() || null }),
       },
     });
 

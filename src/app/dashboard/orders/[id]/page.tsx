@@ -23,13 +23,18 @@ import { orderStatusLabel, orderLineStatusLabel, orderDocumentTypeLabel } from "
 import { jpDateLabel } from "@/lib/utils";
 import { getOrderWithLines } from "@/server/services/orders.service";
 import { listPartsAlphabetical } from "@/server/services/parts.service";
+import { listSuppliersAlphabetical } from "@/server/services/suppliers.service";
 
 type ParamsPromise = Promise<{ id: string }>;
 
 export default async function OrderDetailPage(props: { params: ParamsPromise }) {
   const { id } = await props.params;
 
-  const [order, parts] = await Promise.all([getOrderWithLines(id), listPartsAlphabetical()]);
+  const [order, parts, suppliers] = await Promise.all([
+    getOrderWithLines(id),
+    listPartsAlphabetical(),
+    listSuppliersAlphabetical(),
+  ]);
 
   if (!order) return notFound();
 
@@ -40,7 +45,7 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
     <DashboardPageFrame minHeight="screen">
       <DashboardHeader
         title="注文明細／注文書"
-        description={`${orderDocumentTypeLabel[order.documentType]}・${orderStatusLabel[order.status]}／発注先：${order.supplierName ?? "—"}`}
+        description={`${orderDocumentTypeLabel[order.documentType]}・${orderStatusLabel[order.status]}／相手先：${order.supplierName ?? "—"}${order.supplierHonorific?.trim() ? ` ${order.supplierHonorific.trim()}` : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" asChild>
@@ -59,11 +64,12 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
         <div className="grid gap-1 text-sm">
           <p>注文日：{jpDateLabel(order.orderDate)}</p>
           <p>
-            担当：{order.contactName ?? "—"}／TEL {order.contactPhone ?? "—"}／{order.contactEmail ?? "—"}
+            担当：{order.contactName ?? "—"}／TEL {order.contactPhone ?? "—"}／{order.contactEmail ?? "—"}／FAX{" "}
+            {order.supplierFax ?? "—"}
           </p>
           {order.documentType === "QUOTE_REQUEST" ? (
             <p className="text-xs text-amber-800">
-              見積依頼書です。入荷処理は「発注書」に切り替えたうえでマスタ紐付け行のみ可能です。
+              見積依頼書です。入荷処理は「注文書」に切り替えたうえでマスタ紐付け行のみ可能です。
             </p>
           ) : null}
           <p className="whitespace-pre-line text-muted-foreground">{order.memo ?? "備考メモなし"}</p>
@@ -90,7 +96,10 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
         {canModify ? (
           <OrderHeaderEditForm
             orderId={order.id}
+            supplierId={order.supplierId}
             supplierName={order.supplierName}
+            supplierFax={order.supplierFax}
+            supplierHonorific={order.supplierHonorific}
             memo={order.memo}
             documentType={order.documentType}
             contactName={order.contactName}
@@ -98,6 +107,14 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
             contactEmail={order.contactEmail}
             quoteReplyAmount={order.quoteReplyAmount?.toString() ?? ""}
             quoteReplyLeadTime={order.quoteReplyLeadTime}
+            suppliers={suppliers.map((s) => ({
+              id: s.id,
+              companyName: s.companyName,
+              attn: s.attn,
+              fax: s.fax,
+              phone: s.phone,
+              email: s.email,
+            }))}
           />
         ) : null}
 
@@ -134,14 +151,23 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
                 line.lineSource === "FREE_TEXT"
                   ? (line.freeItemName ?? "（自由記述）")
                   : (line.part?.name ?? "—");
+              const subParts =
+                line.lineSource === "FREE_TEXT"
+                  ? [line.freePartNo, line.machineModel, line.machineUnitNo, line.machineEngineNo].filter(Boolean)
+                  : [];
+              const costHint =
+                line.lineSource === "MASTER"
+                  ? line.unitCost
+                    ? `単価 ${line.unitCost.toString()} 円`
+                    : "単価未入力"
+                  : null;
               const sub =
                 line.lineSource === "FREE_TEXT"
-                  ? [line.freePartNo, line.machineModel, line.machineUnitNo, line.machineEngineNo]
-                      .filter(Boolean)
-                      .join(" · ") || "品番・機体情報は注文書参照"
-                  : line.unitCost
-                    ? `単価 ${line.unitCost.toString()} 円`
-                    : "単価未入力";
+                  ? subParts.length
+                    ? subParts.join(" · ")
+                    : "品番・機体情報は注文書参照"
+                  : (costHint ?? "");
+              const lineNote = line.lineNote?.trim();
               const canReceiveLine = showReceive && !!line.partId;
 
               return (
@@ -150,6 +176,9 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
                   <TableCell>
                     <div className="font-medium">{labelName}</div>
                     <div className="text-xs text-muted-foreground">{sub}</div>
+                    {lineNote ? (
+                      <div className="text-xs text-muted-foreground">備考：{lineNote}</div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="font-semibold">
@@ -158,21 +187,28 @@ export default async function OrderDetailPage(props: { params: ParamsPromise }) 
                     <div className="text-xs text-muted-foreground">残 {remaining}</div>
                   </TableCell>
                   <TableCell className="min-w-[260px]">
-                    {canModify && canReceiveLine ? (
+                    {!canModify ? (
+                      "—"
+                    ) : line.receivedQty > 0 ? (
+                      "—"
+                    ) : (
                       <div className="space-y-3">
-                        <ReceiveLineControl orderLineId={line.id} remaining={remaining} />
+                        {!line.partId ? (
+                          <p className="text-xs text-muted-foreground">
+                            マスタ未連携行（FAX用・入荷は別途マスタ行で）
+                          </p>
+                        ) : null}
+                        {canReceiveLine ? (
+                          <ReceiveLineControl orderLineId={line.id} remaining={remaining} />
+                        ) : null}
                         <OrderLineManage
                           lineId={line.id}
                           orderedQty={line.orderedQty}
                           receivedQty={line.receivedQty}
+                          lineNote={line.lineNote}
+                          unitCost={line.unitCost?.toString() ?? ""}
                         />
                       </div>
-                    ) : canModify && !line.partId ? (
-                      <span className="text-xs text-muted-foreground">
-                        マスタ未連携行（FAX用・入荷は別途マスタ行で）
-                      </span>
-                    ) : (
-                      "—"
                     )}
                   </TableCell>
                 </TableRow>

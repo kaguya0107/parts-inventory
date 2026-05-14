@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { OrderPrintToolbar } from "@/components/orders/order-print-toolbar";
-import { orderDocumentTypeLabel, orderLineStatusLabel, orderStatusLabel } from "@/lib/labels";
+import { orderDocumentTypeLabel } from "@/lib/labels";
 import { jpDateLabel, yen } from "@/lib/utils";
 import { getOrderWithLines } from "@/server/services/orders.service";
 
@@ -16,6 +16,12 @@ export default async function OrderPrintPage(props: { params: ParamsPromise }) {
   const order = await getOrderWithLines(id);
   if (!order) notFound();
 
+  const companyName = process.env.COMPANY_NAME?.trim();
+  const honor = order.supplierHonorific?.trim();
+  const supplierBlock = honor
+    ? `${order.supplierName ?? "＿＿＿＿＿＿"}　${honor}`
+    : (order.supplierName ?? "＿＿＿＿＿＿");
+
   return (
     <div className="print-root min-h-screen bg-white p-8 text-black">
       <style>{`
@@ -28,13 +34,17 @@ export default async function OrderPrintPage(props: { params: ParamsPromise }) {
       <OrderPrintToolbar backHref={`/dashboard/orders/${order.id}`} />
 
       <header className="mb-6 border-b-2 border-slate-800 pb-3">
+        {companyName ? <p className="text-base font-semibold">{companyName}</p> : null}
         <h1 className="text-2xl font-bold">{orderDocumentTypeLabel[order.documentType]}</h1>
-        <p className="text-sm text-slate-700">注文日 {jpDateLabel(order.orderDate)}／状態 {orderStatusLabel[order.status]}</p>
+        <p className="text-sm text-slate-700">注文日 {jpDateLabel(order.orderDate)}</p>
       </header>
 
       <section className="mb-4 grid gap-1 text-sm">
         <p>
-          <span className="font-semibold">発注先</span> {order.supplierName ?? "＿＿＿＿＿＿"}
+          <span className="font-semibold">発注先</span> {supplierBlock}
+        </p>
+        <p>
+          <span className="font-semibold">FAX</span> {order.supplierFax?.trim() || "＿＿＿＿＿＿"}
         </p>
         <p>
           <span className="font-semibold">注文担当</span> {order.contactName ?? "＿＿＿＿＿＿"}
@@ -62,12 +72,12 @@ export default async function OrderPrintPage(props: { params: ParamsPromise }) {
       <table className="w-full border-collapse border border-slate-800 text-sm">
         <thead>
           <tr className="bg-slate-100">
-            <th className="border border-slate-800 p-2 text-left">品名</th>
             <th className="border border-slate-800 p-2 text-left">品番</th>
-            <th className="border border-slate-800 p-2 text-left">型式＊号機＊エンジン</th>
+            <th className="border border-slate-800 p-2 text-left">品名</th>
+            <th className="border border-slate-800 p-2 text-left">型式・号機・エンジン</th>
             <th className="border border-slate-800 p-2 text-right">数量</th>
             <th className="border border-slate-800 p-2 text-right">単価</th>
-            <th className="border border-slate-800 p-2 text-left">行状態</th>
+            <th className="border border-slate-800 p-2 text-left">備考</th>
           </tr>
         </thead>
         <tbody>
@@ -81,16 +91,17 @@ export default async function OrderPrintPage(props: { params: ParamsPromise }) {
               line.lineSource === "FREE_TEXT"
                 ? [line.machineModel, line.machineUnitNo, line.machineEngineNo].filter(Boolean).join(" / ") || "—"
                 : line.part?.compatibleModels ?? "—";
+            const rowNote = line.lineNote?.trim() || "—";
             return (
               <tr key={line.id}>
-                <td className="border border-slate-800 p-2">{name}</td>
                 <td className="border border-slate-800 p-2">{partNo}</td>
+                <td className="border border-slate-800 p-2">{name}</td>
                 <td className="border border-slate-800 p-2">{machine}</td>
                 <td className="border border-slate-800 p-2 text-right tabular-nums">{line.orderedQty}</td>
                 <td className="border border-slate-800 p-2 text-right tabular-nums">
                   {line.unitCost ? yen(line.unitCost) : "—"}
                 </td>
-                <td className="border border-slate-800 p-2">{orderLineStatusLabel[line.lineStatus]}</td>
+                <td className="border border-slate-800 p-2 whitespace-pre-wrap">{rowNote}</td>
               </tr>
             );
           })}
@@ -111,10 +122,6 @@ export default async function OrderPrintPage(props: { params: ParamsPromise }) {
           </ul>
         </section>
       ) : null}
-
-      <footer className="mt-10 border-t border-slate-400 pt-3 text-xs text-slate-600">
-        不明栏は空欄のままで可。FAX送付用に印刷し、社内の紙運用にご利用ください。
-      </footer>
     </div>
   );
 }

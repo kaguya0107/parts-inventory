@@ -29,7 +29,10 @@ export async function createOrderHeader(formData: FormData): Promise<ActionResul
     const parsed = parseForm(orderHeaderSchema, Object.fromEntries(formData.entries()));
 
     const row = await OrdersService.createOrderHeader({
+      supplierId: parsed.supplierId?.trim() || null,
       supplierName: parsed.supplierName?.trim() || undefined,
+      supplierFax: parsed.supplierFax?.trim() || null,
+      supplierHonorific: parsed.supplierHonorific?.trim() || null,
       memo: parsed.memo?.trim() || undefined,
       documentType: parsed.documentType,
       contactName: parsed.contactName?.trim() || undefined,
@@ -49,7 +52,14 @@ export async function updateOrderHeader(formData: FormData): Promise<ActionResul
 
     await OrdersService.updateOrderHeader({
       orderId: parsed.orderId,
+      supplierId: parsed.supplierId !== undefined ? parsed.supplierId.trim() || null : undefined,
       supplierName: parsed.supplierName,
+      supplierFax:
+        parsed.supplierFax !== undefined ? parsed.supplierFax.trim() || null : undefined,
+      supplierHonorific:
+        parsed.supplierHonorific !== undefined
+          ? parsed.supplierHonorific.trim() || null
+          : undefined,
       memo: parsed.memo,
       documentType: parsed.documentType,
       contactName: parsed.contactName,
@@ -84,6 +94,7 @@ export async function appendOrderLine(formData: FormData): Promise<ActionResult>
       machineModel: parsed.machineModel,
       machineUnitNo: parsed.machineUnitNo,
       machineEngineNo: parsed.machineEngineNo,
+      lineNote: parsed.lineNote !== undefined ? parsed.lineNote.trim() || null : undefined,
     });
 
     revalidatePath("/dashboard/orders");
@@ -142,6 +153,7 @@ export async function updateOrderLine(formData: FormData): Promise<ActionResult>
       orderLineId: parsed.orderLineId,
       orderedQty: parsed.orderedQty,
       unitCost: toOptionalDecimal(parsed.unitCost ?? undefined),
+      lineNote: parsed.lineNote !== undefined ? parsed.lineNote.trim() || null : undefined,
     });
 
     revalidatePath("/dashboard/orders");

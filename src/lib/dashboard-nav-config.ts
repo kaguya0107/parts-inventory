@@ -4,6 +4,7 @@ import {
   Building2,
   LayoutDashboard,
   PackageOpen,
+  Store,
   Truck,
   UsersRound,
   Warehouse,
@@ -38,6 +39,7 @@ export const dashboardNavGroups: DashboardNavGroup[] = [
     title: "調達・払い出し",
     items: [
       { href: "/dashboard/orders", label: "注文・入荷", icon: Truck },
+      { href: "/dashboard/suppliers", label: "仕入先マスタ", icon: Store },
       { href: "/dashboard/outgoing", label: "出庫（使用）", icon: PackageOpen },
     ],
   },
