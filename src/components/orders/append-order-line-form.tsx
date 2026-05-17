@@ -64,6 +64,9 @@ export function AppendOrderLineForm({
           const fd = new FormData(e.currentTarget);
           fd.set("orderId", orderId);
           fd.set("lineMode", mode);
+          if (mode === "MASTER") {
+            fd.set("partId", partId);
+          }
           startTransition(async () => {
             setMessage(null);
             const result = await appendOrderLine(fd);

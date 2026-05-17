@@ -103,7 +103,6 @@ export function OrderHeaderEditForm({
             if (!row) return;
             setSupplierName(row.companyName);
             setSupplierFax(row.fax ?? "");
-            setHdrContactName(row.attn ?? "");
             setHdrContactPhone(row.phone ?? "");
             setHdrContactEmail(row.email ?? "");
           }}
@@ -115,6 +114,9 @@ export function OrderHeaderEditForm({
             </option>
           ))}
         </select>
+        <p className="text-xs text-muted-foreground">
+          注文担当者名はマスタからは転記しません（注文ごとに入力してください）。
+        </p>
       </div>
 
       <div className="space-y-1">

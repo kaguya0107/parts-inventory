@@ -88,7 +88,6 @@ export function OrderHeaderCreateForm({
             }
             setSupplierName(row.companyName);
             setSupplierFax(row.fax ?? "");
-            setContactName(row.attn ?? "");
             setContactPhone(row.phone ?? "");
             setContactEmail(row.email ?? "");
           }}
@@ -105,7 +104,7 @@ export function OrderHeaderCreateForm({
           <Link href="/dashboard/suppliers" className="underline">
             仕入先マスタ
           </Link>
-          で登録できます。
+          で登録できます。注文担当者名は注文ごとに入力してください（マスタの窓口名は転記しません）。
         </p>
       </div>
 
